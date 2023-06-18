@@ -7,12 +7,12 @@
   "backends": ["windows", "linux", "darwin"],
   "frontends": ["desktop"],
   "displayName": {
-    "en_US": "Plugin sample with vite and svelte",
-    "zh_CN": "插件样例 vite + svelte 版"
+    "en_US": "networkCustom",
+    "zh_CN": "可交互关系图"
   },
   "description": {
-    "en_US": "SiYuan plugin sample with vite and svelte",
-    "zh_CN": "使用 vite 和 svelte 开发的思源插件样例"
+    "en_US": "networkCustom",
+    "zh_CN": "也不知道有什么用，就是觉得这样很炫"
   },
   "readme": {
     "en_US": "README.md",
