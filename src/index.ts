@@ -2,18 +2,26 @@ import { Plugin, getFrontend, getBackend } from "siyuan";
 import "./index.scss";
 import G6 from "@antv/g6";
 import * as sy from "../../siyuanPlugin-common/siyuan-api";
-import { NodeConfig, Graph } from "@antv/g6/lib/index";
+import {
+  NodeConfig,
+  EdgeConfig,
+  ComboConfig,
+  Graph,
+  INode,
+  ICombo,
+} from "@antv/g6/lib/index";
 const STORAGE_NAME = "menu-config";
 const DOCK_TYPE = "dock_tab";
 declare global {
   interface Window {
-    customGraph: { graph: Graph; lastTabWidth: number };
+    customGraph: { graph: Graph; lastTabWidth: number; i18n: any };
   }
 }
-export default class PluginSample extends Plugin {
+export default class networkCustom extends Plugin {
   private isMobile: boolean;
 
   onload() {
+    window.customGraph = { graph: undefined, lastTabWidth: 0, i18n: this.i18n };
     this.data[STORAGE_NAME] = { readonlyText: "Readonly" };
     const frontEnd = getFrontend();
     this.isMobile = frontEnd === "mobile" || frontEnd === "browser-mobile";
@@ -56,29 +64,23 @@ export default class PluginSample extends Plugin {
           </div>
       </div>`;
         render();
-        console.log("init");
+        //console.log(window.customGraph.i18n.prefix,"init");
       },
-      update() {
-        console.log("update");
-      },
+      update() {},
       async resize() {
-        let container = document.getElementById("container_networkCustom");
-        let width = window
-          .getComputedStyle(container)
-          .getPropertyValue("width");
-        let widthNum = parseInt(width);
+        const container = document.getElementById("container_networkCustom");
+        const widthNum = container.offsetWidth;
+        const heightNum = container.offsetHeight;
         const graph = window.customGraph.graph;
         if (widthNum == 0 || !widthNum) {
           //*清除画布
           graph.clear();
         } else {
-          //console.log(graph)
           //*改变大小
-          const height = window
+          /*const height = window
             .getComputedStyle(container)
             .getPropertyValue("height");
-          const heightNum = parseInt(height);
-          console.log([heightNum, widthNum]);
+          const heightNum = parseInt(height);*/
           graph.changeSize(heightNum, widthNum);
           //graph.fitView(20);
           if (!graph) {
@@ -98,7 +100,7 @@ export default class PluginSample extends Plugin {
       },
     });
 
-    console.log(this.i18n.helloPlugin);
+    console.log(this.i18n.prefix, this.i18n.helloPlugin);
   }
 
   onLayoutReady() {
@@ -107,7 +109,7 @@ export default class PluginSample extends Plugin {
   }
 
   onunload() {
-    console.log(this.i18n.byePlugin);
+    console.log(this.i18n.prefix, this.i18n.byePlugin);
   }
 }
 
@@ -116,15 +118,11 @@ async function render() {
     nodes: [
       {
         id: "node1",
-        label: "Circle1",
-        // x: 150,
-        //y: 150,
+        label: "示例节点1",
       },
       {
         id: "node2",
-        label: "Circle2",
-        //x: 400,
-        //y: 150,
+        label: "示例节点2",
       },
     ],
     edges: [
@@ -134,19 +132,48 @@ async function render() {
       },
     ],
   };
-
+  const NodeContextMenu = new G6.Menu({
+    getContent(evt) {
+      return `
+      <div class='customGraphContextMenu'>
+        <div itemName='expandNode'>展开节点</div>
+      </div>`;
+    },
+    handleMenuClick: async (target, item) => {
+      let itemName = target.getAttribute("itemName");
+      let nodeModel = item.getModel() as nodeModel;
+      switch (itemName) {
+        case "expandNode":
+          await expandNode(nodeModel);
+      }
+      //console.log(target, item);
+    },
+    offsetX: 16 + 10,
+    offsetY: 0,
+    itemTypes: ["node"],
+  });
   const graph = new G6.Graph({
     container: "container_networkCustom",
     fitView: true,
     height: 600,
     width: 600,
+    animate: true,
+    groupByTypes: false,
     modes: {
       default: ["zoom-canvas", "drag-canvas"],
     },
-    layout: { type: "comboCombined" },
+    layout: {
+      type: "comboCombined",
+      innerLayout: new G6.Layout["concentric"]({
+        preventOverlap: true,
+        minNodeSpacing: 100,//?这个属性是生效的，但官方文档中并没有他
+        sortBy: "level",
+      }),
+    },
+    plugins: [NodeContextMenu],
     defaultNode: {
       type: "circle",
-      size: [100],
+      //size: [100],
       color: "#5B8FF9",
       style: {
         fill: "#9EC9FF",
@@ -162,6 +189,14 @@ async function render() {
     defaultEdge: {
       style: {
         stroke: "#e2e2e2",
+        endArrow: true,
+      },
+    },
+    defaultCombo: {
+      type: "circle",
+      style: {
+        fill: "#steelblue",
+        fillOpacity: 0.5,
       },
     },
   });
@@ -169,7 +204,7 @@ async function render() {
   graph.data(data);
   graph.render();
   window.customGraph.graph = graph;
-  await reInitGraph();
+  graph.get("canvas").set("localRefresh", false);
 }
 async function reInitGraph() {
   const graph = window.customGraph.graph;
@@ -178,17 +213,31 @@ async function reInitGraph() {
   }
   const startNodeId = sy.getFocusNodeId();
   if (!startNodeId) {
+    sy.pushErrMsg(
+      window.customGraph.i18n.prefix + window.customGraph.i18n.startNodeError
+    );
     return;
   }
   const startBlock = await sy.getBlockById(startNodeId);
   const startNodeModel = buildNode(startBlock);
+  startNodeModel.level = 20;
   //console.log(startNodeModel);
   //*设置初始位置，g6的canvas长宽尺寸是视口尺寸的两倍，故需除以4才能位于视口中心
-  let x = graph.getWidth() / 4;
-  let y = graph.getHeight() / 4;
-  startNodeModel.x = x;
-  startNodeModel.y = y;
-  graph.changeData({ nodes: [startNodeModel] });
+  //let x = graph.getWidth() / 4;
+  //let y = graph.getHeight() / 4;
+  //startNodeModel.x = x;
+  //startNodeModel.y = y;
+  let combosModel = [
+    {
+      id: "combo1",
+      label: "combo1",
+    },
+  ];
+  //combosModel = [];
+  graph.changeData({
+    nodes: [startNodeModel],
+    combos: combosModel,
+  });
   //graph.focusItem(startNodeId);
 }
 function buildNode(block: Block) {
@@ -196,14 +245,22 @@ function buildNode(block: Block) {
     id: block.id,
     box: block.box,
     path: block.path,
-    title: block.content,
+    content: block.content,
     blockType: block.type,
-    parent: block.parent_id,
+    parent: buildNodeParent(block),
+    root: block.root_id,
+    //?直接指定comboId会带来意想不到的问题，在后序中直接添加到相应combo
+    //comboId: (block.root_id || block.box) + "-combo",
+    comboId: "combo1",
     label: buildNodeLabel(block),
+    level: 1,
   };
   return node;
 }
-
+//todo 文档的parent需要单独处理
+function buildNodeParent(block: Block) {
+  return block.parent_id;
+}
 function buildNodeLabel(block: Block): string {
   const labelLength = 8; //todo 可以改为自定义
   switch (block.type) {
@@ -221,11 +278,219 @@ function buildNodeLabel(block: Block): string {
       return sy.typeAbbrMap[block.type];
   }
 }
+/**
+ * @param otherType other的类型，如ref为origin引用的块
+ */
+function buildEdge(
+  origin: nodeModel,
+  other: nodeModel,
+  otherType: edgeType,
+  label?: string
+) {
+  let link: edgeModel = {
+    refType: "ref",
+  };
+  switch (otherType) {
+    case "parent":
+    case "child":
+      link.refType = "child";
+      break;
+    default:
+      link.refType = "ref";
+  }
+  switch (otherType) {
+    case "def":
+    case "parent":
+      link.source = other.id;
+      link.target = origin.id;
+      break;
+    case "child":
+    case "ref":
+      link.source = origin.id;
+      link.target = other.id;
+      break;
+  }
+  if (label) {
+    link.label = label;
+  }
+  link.id = `${link.source}-${link.target}-${link.refType}`; //*在此显式的声明id是为了明确什么样的link算重复
+  return link;
+}
+function addCombo(block: Block) {
+  //*添加自身
+  if (block.type != "d") {
+    return;
+  }
+  //console.group("addCombo");
+  const graph = window.customGraph.graph;
+  let comboId = block.id + "-combo";
+  let comboAdded = graph.findById(comboId);
+  if (comboAdded) {
+    return;
+  }
+  //---comboModel---
+  let comboModel: ComboConfig = {
+    id: comboId,
+    parent: buildNodeParent(block),
+    label: buildNodeLabel(block),
+  };
+  //---childIds---
+  let childIds = [];
+  const childrenNodes = graph.findAll("node", (node) => {
+    return node.getModel().root == block.id;
+  });
+  for (let child of childrenNodes) {
+    childIds.push(child.getID());
+  }
+  graph.createCombo(comboModel, childIds);
+  console.log(comboModel, childIds);
+  const parentCombo = graph.find("combo", (combo) => {
+    return combo.getModel().parentId == comboId;
+  });
+  //*添加父级
+  /*
+    comboId = parentId + "-combo";
+    comboAdded = graph.findById(comboId);
+    if (!comboAdded) {
+      if (block.parent_id) {
+        block = await sy.getBlockById(block.parent_id);
+        addCombo(block); //!递归
+      } else {
+        let notebook = await sy.getNotebookConf(block.box);
+        comboModel = {
+          id: comboId,
+          label: notebook.name,
+        };
+        graph.addItem("combo", comboModel);
+        console.log("combo", comboModel);
+      }
+    }*/
+
+  //console.groupEnd();
+  //graph.layout();
+}
+/**
+ *
+ * @param nodeId node或combo的id
+ * @returns
+ */
+function addToCombo(nodeId: string) {
+  //console.log("开始addToCombo");
+  const graph = window.customGraph.graph;
+  const item = graph.findById(nodeId);
+  const model = item.getModel();
+  let parentId = "";
+  if (model.type == "node") {
+    parentId = model.root as string;
+  } else if (model.type == "combo") {
+    parentId = model.parent as string;
+  }
+  if (!parentId) {
+    console.log(model, "无parentId");
+    return;
+  }
+  parentId = parentId + "-combo";
+  let parentCombo = graph.findById(parentId);
+  if (!parentCombo) {
+    console.log(model, "未创建combo");
+    return;
+  }
+  console.log("准备移动至combo", model.label);
+  graph.updateComboTree(nodeId, parentId);
+  console.log("已移动至combo", model.label);
+}
+async function addNodesAndEdges(
+  otherBlocks: Block[],
+  origin: nodeModel,
+  othersType: edgeType
+): Promise<edgeModel[]> {
+  if (otherBlocks.length == 0) {
+    return [];
+  }
+  //console.group("添加边和节点");
+  const graph = window.customGraph.graph;
+  for (let otherBlock of otherBlocks) {
+    await sleep(200);
+    let other = buildNode(otherBlock);
+    let nodeAdded = graph.findById(other.id);
+    if (!nodeAdded) {
+      graph.addItem("node", other);
+      //graph.updateComboTree(other.id, "combo1");
+      //graph.layout();
+      //addCombo(otherBlock);
+      //addToCombo(otherBlock.id);
+      //console.log("添加节点", other);
+    }
+    let edge = buildEdge(origin, other, othersType);
+    if (!edge.id) {
+      continue;
+    }
+    let edgeAdded = graph.findById(edge.id);
+    if (!edgeAdded) {
+      graph.addItem("edge", edge);
+      //console.log("添加边", edge);
+      //*更新节点level
+      switch (edge.refType) {
+        case "child":
+          graph.updateItem(other.id, {
+            level: origin.level - 1,
+          });
+          break;
+        case "parent":
+          graph.updateItem(other.id, {
+            level: origin.level + 1,
+          });
+          break;
+      }
+    }
+  }
+  //console.groupEnd();
+  console.log(graph.getNodes());
+  console.log(graph.getCombos());
+  console.log(graph.getEdges());
+  //graph.updateCombos();
+  //const data = graph.save();
+  //graph.read(data);
+  graph.layout();
+}
+async function expandNode(node: nodeModel) {
+  let originBlock = await sy.getBlockById(node.id);
+  if (!originBlock) {
+    return;
+  }
+  let ParentBlock = await sy.getParentBlock(originBlock);
+  if (ParentBlock) {
+    await addNodesAndEdges([ParentBlock], node, "parent");
+  }
+  const ChildrenBlocks = await sy.getChildrenBlocks(node.id);
+  await addNodesAndEdges(ChildrenBlocks, node, "child");
+  const DefBlocks = await sy.getDefBlocks(node.id);
+  await addNodesAndEdges(DefBlocks, node, "def");
+  const RefBlocks = await sy.getRefBlocks(node.id);
+  await addNodesAndEdges(RefBlocks, node, "ref");
+}
+async function sleep(time: number) {
+  return new Promise((res) => {
+    setTimeout(res, time);
+  });
+}
 type edgeType = "parent" | "child" | "ref" | "def";
 interface nodeModel extends NodeConfig {
   box: Block["box"]; //`json:"box"`
   path: Block["path"]; //   `json:"path"`
-  title: Block["content"];
+  content: Block["content"];
   blockType: Block["type"];
   parent: Block["parent_id"];
+  root: Block["root_id"];
+  //comboId: Block["root_id"];
+  /**
+   * 节点层级，初始节点为20，
+   * 通过parent和child添加边时会相应增加和减少1
+   * 通过ref添加时，会设置为1以使得其在同心圆的最外层
+   */
+  //
+  level: number;
+}
+interface edgeModel extends EdgeConfig {
+  refType: edgeType;
 }

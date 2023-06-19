@@ -1,3 +1,13 @@
 #helloPanel {
-    border: 1px rgb(189, 119, 119) dashed;
+  border: 1px rgb(189, 119, 119) dashed;
+}
+
+.customGraphContextMenu div {
+  cursor: pointer;
+  list-style-type: none;
+  list-style: none;
+  margin-left: 0px;
+}
+.customGraphContextMenu div:hover {
+  color: #0074d9;
 }
