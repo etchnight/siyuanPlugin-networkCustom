@@ -11,9 +11,17 @@ import {
   GraphChart,
   GraphSeriesOption,
 } from "echarts/charts";
+import { GridComponent, GridComponentOption } from "echarts/components";
 //*源文件未导出，需修改
-import { TreeSeriesNodeItemOption } from "echarts/types/dist/shared";
-echarts.use([TreeChart, GraphChart, CanvasRenderer]);
+import {
+  TreeSeriesNodeItemOption,
+  GraphEdgeItemOption,
+  GraphNodeItemOption,
+} from "echarts/types/dist/shared";
+echarts.use([TreeChart, GraphChart, CanvasRenderer, GridComponent]);
+type ECOption = echarts.ComposeOption<
+  TreeSeriesOption | GraphSeriesOption | GridComponentOption
+>;
 //------
 const STORAGE_NAME = "menu-config";
 const DOCK_TYPE = "dock_tab";
@@ -21,17 +29,18 @@ export default class networkCustom extends Plugin {
   //private isMobile: boolean;
   private graph: echarts.ECharts;
   private lastTabWidth: number;
-  private treeData: nodeModel[];
-  private graphData: GraphSeriesOption["data"];
-  private tagTreeData: TreeSeriesOption["data"];
+  private treeData: nodeModel[] = [];
+  private graphData: graphNodeModel[] = [];
+  private graphLinks: edgeModel[] = [];
+  private tagTreeData: TreeSeriesOption["data"] = [];
   //private graphOption: ECOption;
   onload() {
     let graph = this.graph;
     let lastTabWidth = this.lastTabWidth;
     let graphData = this.graphData;
+    let graphLinks = this.graphLinks;
     this.lastTabWidth = 0;
     let treeData = this.treeData;
-    treeData = [];
     let tagTreeData = this.tagTreeData;
     //let graphOption = this.graphOption;
     // 图标的制作参见帮助文档
@@ -112,9 +121,84 @@ export default class networkCustom extends Plugin {
       lastTabWidth = widthNum || 0;
     }
     async function reInitGraph() {
+      console.log("初始化");
       if (!graph) {
         return;
       }
+      const grid = { left: 50, right: 50, bottom: 50, top: 50 };
+      let graphOption: ECOption = {
+        grid: grid,
+        xAxis: {
+          type: "value",
+        },
+        yAxis: {
+          type: "value",
+          inverse: true,
+        },
+        series: [
+          {
+            type: "tree",
+            id: "blockTree",
+            data: treeData,
+            z: 10,
+            label: {
+              show: true,
+              color: "#F0FFFF",
+              textShadowColor: "#000000",
+              position: "top",
+              formatter: (params: { data }) => {
+                //todo 调试用
+                let labelName = params.data.labelName;
+                let info = getDataInfo(0);
+                let idList = info._idList as BlockId[];
+                let itemLayouts = info._itemLayouts as {
+                  x: number;
+                  y: number;
+                }[];
+                let { x, y } = getTreeNodePosition(
+                  params.data,
+                  idList,
+                  itemLayouts
+                );
+                return `${labelName}:${Math.round(x)},${Math.round(y)}`;
+              },
+            },
+          },
+          {
+            type: "graph",
+            id: "blockGraph",
+            data: graphData,
+            links: graphLinks,
+            coordinateSystem: "cartesian2d",
+            z: 5,
+            label: {
+              show: true,
+              position: "bottom",
+              formatter: (params: { data }) => {
+                //todo 调试用
+                if (params.data.x) {
+                  return `${params.data.labelName}:${params.data.x},${params.data.y}`;
+                }
+                let label = params.data.labelName + ":";
+                for (let value of params.data.value) {
+                  label = label + Math.round(value).toString() + ",";
+                }
+                return label;
+              },
+            },
+            edgeSymbol: ["none", "arrow"],
+          },
+        ],
+      };
+      //*统一树图和关系图尺寸grid
+      for (let key of Object.keys(grid)) {
+        graphOption.series[0][key] = grid[key];
+      }
+      graph.setOption(graphOption);
+      graph.on("contextmenu", (params) => {
+        graphContextMenu(params);
+      });
+
       const startNodeId = sy.getFocusNodeId();
       if (!startNodeId) {
         sy.pushErrMsg(this.i18n.prefix + this.i18n.startNodeError);
@@ -122,32 +206,23 @@ export default class networkCustom extends Plugin {
       }
       const startBlock = await sy.getBlockById(startNodeId);
       const startNodeModel = await buildNode(startBlock);
-      await addNodeToTreeData(startNodeModel);
-      let graphOption = {
-        series: [
-          {
-            type: "tree",
-            id: "blockTree",
-            data: treeData,
-            label: {
-              show: true,
-              color: "#F0FFFF",
-              textShadowColor: "#000000",
-              position: "top",
-            },
-          },
-        ],
-      };
-      graph.setOption(graphOption);
-      graph.on("contextmenu", (params) => {
-        graphContextMenu(params);
-      });
+      await addNodeToTreeDataAndRefresh(startNodeModel);
+      await expandNode(startNodeModel);
+    }
+    function refreshGraph() {
+      let option = graph.getOption();
+      option.series[0].data = treeData; //todo 更稳妥的方式是使用Id检索
+      option.series[1].data = graphData;
+      option.series[1].links = graphLinks;
+      graph.setOption(option);
+    }
+    function getDataInfo(index: number) {
       //https://github.com/apache/echarts/issues/5614
       //@ts-ignore
       let model = graph.getModel();
-      let series = model.getSeriesByIndex(0);
+      let series = model.getSeriesByIndex(index);
       let info = series.getData();
-      console.log("info", info);
+      return info;
     }
     function graphContextMenu(params: echarts.ECElementEvent) {
       const menu = new Menu("graphMenu", () => {
@@ -168,9 +243,16 @@ export default class networkCustom extends Plugin {
         y: params.event.event.clientY + 5,
       });
     }
+    /**
+     * 未构建children和parent
+     * @param block
+     * @returns
+     */
     async function buildNode(block: Block) {
+      //@ts-ignore
       let node: nodeModel = { ...block, children: [] };
       node.name = buildNodeLabel(block);
+      node.labelName = node.name;
       const parentBlock = await sy.getParentBlock(block);
       if (parentBlock) {
         node.parent_id = parentBlock.id;
@@ -197,42 +279,19 @@ export default class networkCustom extends Plugin {
           return sy.typeAbbrMap[block.type];
       }
     }
-    /**
-     * @param otherType other的类型，如ref为origin引用的块
-     */
-    function buildEdge(
-      origin: nodeModel,
-      other: nodeModel,
-      otherType: edgeType,
-      label?: string
-    ) {
+    function buildGraphNode(node: nodeModel) {
+      let graphNode: graphNodeModel = structuredClone(node);
+      //graphNode.labelName = node.name;
+      graphNode.name = node.id;
+      graphNode.fixed = true;
+      return graphNode;
+    }
+    function buildEdge(source: graphNodeModel, target: graphNodeModel) {
       let link: edgeModel = {
-        refType: "ref",
+        source: source.name,
+        target: target.name,
+        labelName: "", //todo
       };
-      switch (otherType) {
-        case "parent":
-        case "child":
-          link.refType = "child";
-          break;
-        default:
-          link.refType = "ref";
-      }
-      switch (otherType) {
-        case "def":
-        case "parent":
-          link.source = other.id;
-          link.target = origin.id;
-          break;
-        case "child":
-        case "ref":
-          link.source = origin.id;
-          link.target = other.id;
-          break;
-      }
-      if (label) {
-        link.label = label;
-      }
-      link.id = `${link.source}-${link.target}-${link.refType}`; //*在此显式的声明id是为了明确什么样的link算重复
       return link;
     }
     /**
@@ -241,7 +300,7 @@ export default class networkCustom extends Plugin {
      * @returns
      */
     async function addNodeToTreeData(node: nodeModel) {
-      console.log("添加", node.name);
+      //console.log("添加节点到treeData", node.labelName);
       //*node为box
       if (!node.type && node.id) {
         let added = treeData.find((child) => {
@@ -256,12 +315,15 @@ export default class networkCustom extends Plugin {
       //*查找parent
       let parent = findTreeDataById(treeData, node.parent_id);
       if (parent) {
+        //?不可行 node.parent = parent;
         //*添加node
         let added = parent.children.find((child) => {
           return child.id == node.id;
         });
         if (!added) {
           parent.children.push(node);
+        } else {
+          //?added.parent = parent;
         }
         return;
       } else {
@@ -272,104 +334,140 @@ export default class networkCustom extends Plugin {
         await addNodeToTreeData(parentNode);
       }
     }
+    /**
+     * 除了addNodeToTreeData本身，在其他任何地方调用addNodeToTreeData，都必须立刻刷新数据
+     */
+    async function addNodeToTreeDataAndRefresh(node: nodeModel) {
+      await addNodeToTreeData(node);
+      refreshGraph();
+      return;
+    }
     function findTreeDataById(children: nodeModel[], id: string) {
       let node: nodeModel;
       for (let child of children) {
         if (child.id == id) {
           node = child;
+          break;
+        } else {
+          node = findTreeDataById(child.children, id);
+          if (node) {
+            break;
+          }
         }
       }
-      if (node) {
-        return node;
-      }
-      for (let child of children) {
-        return findTreeDataById(child.children, id);
-      }
+      return node;
     }
-    async function addNodesAndEdges(
-      otherBlocks: Block[],
+    function addNodesAndEdges(
+      otherNodes: nodeModel[],
       origin: nodeModel,
-      othersType: edgeType
+      edgeType: edgeType
     ) {
-      console.group("addNodesAndEdges:", origin.label, othersType);
-      if (otherBlocks.length == 0) {
-        console.groupEnd();
+      if (otherNodes.length == 0) {
         return;
       }
-      for (let otherBlock of otherBlocks) {
-        let other = buildNode(otherBlock);
-        let nodeAdded = graphData.nodes.find((value) => {
-          return value.id == other.id;
-        });
-        //?保留，动态方法
-        //let nodeAdded = graph.findById(other.id);
-        if (!nodeAdded) {
-          await addCombo(otherBlock);
-          graphData.nodes.push(other);
-          //?保留，动态方法
-          //graph.addItem("node", other);
-          //graph.layout();
-          //graph.updateComboTree(other.id, other.comboId);
+      const originNode = buildGraphNode(origin);
+      addNodeToGraphData(originNode);
+      for (let otherNode of otherNodes) {
+        let other = buildGraphNode(otherNode);
+        addNodeToGraphData(other);
+        let edge: edgeModel;
+        if (edgeType == "ref") {
+          edge = buildEdge(originNode, other);
+        } else {
+          edge = buildEdge(other, originNode);
         }
-        let edge = buildEdge(origin, other, othersType);
         if (!edge.target && !edge.source) {
-          console.log(edge);
           continue;
         }
-        let edgeAdded = graphData.edges.find((value) => {
-          return value.id == edge.id;
+        let edgeAdded = graphLinks.find((value) => {
+          return value.source == edge.source && value.target == edge.target;
         });
-        //?保留，动态方法
-        //let edgeAdded = graph.findById(edge.id);
         if (!edgeAdded) {
-          //*更新节点level
-          switch (edge.refType) {
-            case "child":
-              graphData.nodes.find((value) => {
-                return value.id == other.id;
-              }).level = origin.level - 1;
-              //?保留，动态方法
-              //graph.updateItem(other.id, {level: origin.level - 1,});
-              break;
-            case "parent":
-              graphData.nodes.find((value) => {
-                return value.id == other.id;
-              }).level = origin.level + 1;
-              //?保留，动态方法
-              //graph.updateItem(other.id, {level: origin.level + 1,});
-              break;
-          }
-          graphData.edges.push(edge);
-          //?保留，动态方法
-          //graph.addItem("edge", edge);
-          //graph.updateCombo(other.comboId);
-          //graph.layout();
+          graphLinks.push(edge);
         }
       }
-      console.log(graphData);
-      await waitGraphAnimate();
-      graph.changeData(graphData);
-      console.log(graph.getNodes());
-      console.log(graph.getCombos());
-      console.log(graph.getEdges());
-      console.groupEnd();
     }
-
+    function addNodeToGraphData(node: graphNodeModel) {
+      let nodeAdded = graphData.find((value) => {
+        return value.id == node.id;
+      });
+      //*计算node位置
+      let info = getDataInfo(0);
+      let idList = info._idList as BlockId[];
+      let itemLayouts = info._itemLayouts as { x: number; y: number }[];
+      const treeLikeNode = node as unknown as nodeModel;
+      let { x, y } = getTreeNodePosition(treeLikeNode, idList, itemLayouts);
+      node.value = [x, y];
+      /*
+      let realPosition = graph.convertToPixel({ seriesId: "blockTree" }, [
+        x,
+        y,
+      ]);
+      [node.x, node.y] = graph.convertFromPixel(
+        { seriesId: "blockGraph" },
+        realPosition
+      );*/
+      if (!nodeAdded) {
+        graphData.push(node);
+      } else {
+        nodeAdded = node;
+      }
+    }
+    function getTreeNodePosition(
+      node: nodeModel,
+      idList: BlockId[],
+      itemLayouts: { x: number; y: number }[]
+    ) {
+      let index = idList.findIndex((item) => {
+        return item == node.id;
+      });
+      if (index >= itemLayouts.length || !itemLayouts[index]) {
+        let parent = findTreeDataById(treeData, node.parent_id);
+        if (!parent) {
+          console.error(
+            `尝试在treeData中查找'${node.labelName}'(${node.id})的父节点(${node.parent_id})失败`
+          );
+          console.log("此时的图数据", graph.getOption());
+          throw "在tree中找不到父节点";
+        }
+        return getTreeNodePosition(parent, idList, itemLayouts);
+      } else {
+        return itemLayouts[index];
+      }
+    }
     async function expandNode(node: nodeModel) {
       let originBlock = await sy.getBlockById(node.id);
       if (!originBlock) {
         return;
       }
-      const ChildrenBlocks = await sy.getChildrenBlocks(node.id);
-      for (let child of ChildrenBlocks) {
+      //*children
+      const childrenBlocks = await sy.getChildrenBlocks(node.id);
+      for (let child of childrenBlocks) {
         let node = await buildNode(child);
-        await addNodeToTreeData(node);
+        await addNodeToTreeDataAndRefresh(node);
       }
-      let option = graph.getOption();
-      option.series[0].data = treeData; //todo 更稳妥的方式是使用Id检索
-      graph.setOption(option);
-      //console.log("option", option);
-      //console.log("ChildrenBlocks", ChildrenBlocks);
+      //*refBlocks
+      const refBlocks = await sy.getRefBlocks(node.id);
+      let refNodes: nodeModel[] = [];
+      for (let child of refBlocks) {
+        let node = await buildNode(child);
+        await addNodeToTreeDataAndRefresh(node);
+        refNodes.push(node);
+      }
+      addNodesAndEdges(refNodes, node, "ref");
+      //*defBlocks
+      const defBlocks = await sy.getDefBlocks(node.id);
+      let defNodes: nodeModel[] = [];
+      for (let child of defBlocks) {
+        let node = await buildNode(child);
+        await addNodeToTreeDataAndRefresh(node);
+        defNodes.push(node);
+      }
+      addNodesAndEdges(defNodes, node, "def");
+      refreshGraph();
+      console.log("info", getDataInfo(0));
+      console.log("info", getDataInfo(1));
+      console.log("option", graph.getOption());
     }
 
     async function sleep(time: number) {
@@ -388,10 +486,10 @@ export default class networkCustom extends Plugin {
     console.log(this.i18n.prefix, this.i18n.byePlugin);
   }
 }
-type ECOption = echarts.ComposeOption<TreeSeriesOption | GraphSeriesOption>;
 type edgeType = "parent" | "child" | "ref" | "def";
 interface nodeModel extends TreeSeriesNodeItemOption {
-  //extends Block
+  labelName: string;
+  //todo extends Block
   id: BlockId;
   parent_id?: BlockId; //?会改变
   root_id: DocumentId;
@@ -414,7 +512,33 @@ interface nodeModel extends TreeSeriesNodeItemOption {
   created: string;
   updated: string;
   children: nodeModel[]; //?
+  //?不可行，会无限clone parent: nodeModel;
 }
-interface edgeModel {
-  refType: edgeType;
+interface edgeModel extends GraphEdgeItemOption {
+  labelName: string;
+}
+interface graphNodeModel extends GraphNodeItemOption {
+  labelName: string;
+  //todo extends Block
+  id: BlockId;
+  parent_id?: BlockId; //?会改变
+  root_id: DocumentId;
+  hash: string;
+  box: string;
+  path: string;
+  hpath: string;
+  name: string; //?会改变
+  alias: string;
+  memo: string;
+  tag: string;
+  content: string;
+  fcontent?: string;
+  markdown: string;
+  length: number;
+  type: BlockType;
+  subtype: BlockSubType;
+  ial?: { [key: string]: string };
+  sort: number;
+  created: string;
+  updated: string;
 }
