@@ -1,6 +1,7 @@
 import { Plugin, getFrontend, getBackend, Menu } from "siyuan";
 import "./index.scss";
 import * as sy from "../../siyuanPlugin-common/siyuan-api";
+//import { merge } from "lodash";
 //---eacharts---
 import * as echarts from "echarts/core";
 import { CanvasRenderer } from "echarts/renderers";
@@ -23,7 +24,7 @@ export default class networkCustom extends Plugin {
   private treeData: nodeModel[];
   private graphData: GraphSeriesOption["data"];
   private tagTreeData: TreeSeriesOption["data"];
-  private graphOption: ECOption;
+  //private graphOption: ECOption;
   onload() {
     let graph = this.graph;
     let lastTabWidth = this.lastTabWidth;
@@ -32,7 +33,7 @@ export default class networkCustom extends Plugin {
     let treeData = this.treeData;
     treeData = [];
     let tagTreeData = this.tagTreeData;
-    let graphOption = this.graphOption;
+    //let graphOption = this.graphOption;
     // 图标的制作参见帮助文档
     if (!document.getElementById("icon_networkCustom")) {
       this.addIcons(`
@@ -42,7 +43,7 @@ export default class networkCustom extends Plugin {
       </symbol>
       `);
     }
-
+    //@ts-ignore
     const dock = this.addDock({
       config: {
         position: "RightTop",
@@ -122,7 +123,7 @@ export default class networkCustom extends Plugin {
       const startBlock = await sy.getBlockById(startNodeId);
       const startNodeModel = await buildNode(startBlock);
       await addNodeToTreeData(startNodeModel);
-      graphOption = {
+      let graphOption = {
         series: [
           {
             type: "tree",
@@ -132,6 +133,7 @@ export default class networkCustom extends Plugin {
               show: true,
               color: "#F0FFFF",
               textShadowColor: "#000000",
+              position: "top",
             },
           },
         ],
@@ -141,6 +143,7 @@ export default class networkCustom extends Plugin {
         graphContextMenu(params);
       });
       //https://github.com/apache/echarts/issues/5614
+      //@ts-ignore
       let model = graph.getModel();
       let series = model.getSeriesByIndex(0);
       let info = series.getData();
@@ -148,17 +151,20 @@ export default class networkCustom extends Plugin {
     }
     function graphContextMenu(params: echarts.ECElementEvent) {
       const menu = new Menu("graphMenu", () => {
-        console.log("menu");
+        console.log("菜单");
       });
       menu.addItem({
         icon: "",
         label: "展开节点",
         click: () => {
+          expandNode(params.data as nodeModel);
           console.log(params);
         },
       });
       menu.open({
+        //@ts-ignore
         x: params.event.event.clientX + 5,
+        //@ts-ignore
         y: params.event.event.clientY + 5,
       });
     }
@@ -229,7 +235,13 @@ export default class networkCustom extends Plugin {
       link.id = `${link.source}-${link.target}-${link.refType}`; //*在此显式的声明id是为了明确什么样的link算重复
       return link;
     }
+    /**
+     * 向树添加节点时，会递归添加其父节点（如果原树中没有的话）
+     * @param node
+     * @returns
+     */
     async function addNodeToTreeData(node: nodeModel) {
+      console.log("添加", node.name);
       //*node为box
       if (!node.type && node.id) {
         let added = treeData.find((child) => {
@@ -261,10 +273,16 @@ export default class networkCustom extends Plugin {
       }
     }
     function findTreeDataById(children: nodeModel[], id: string) {
+      let node: nodeModel;
       for (let child of children) {
         if (child.id == id) {
-          return child;
+          node = child;
         }
+      }
+      if (node) {
+        return node;
+      }
+      for (let child of children) {
         return findTreeDataById(child.children, id);
       }
     }
@@ -342,16 +360,16 @@ export default class networkCustom extends Plugin {
       if (!originBlock) {
         return;
       }
-      let ParentBlock = await sy.getParentBlock(originBlock);
-      if (ParentBlock) {
-        await addNodesAndEdges([ParentBlock], node, "parent");
-      }
       const ChildrenBlocks = await sy.getChildrenBlocks(node.id);
-      await addNodesAndEdges(ChildrenBlocks, node, "child");
-      const DefBlocks = await sy.getDefBlocks(node.id);
-      await addNodesAndEdges(DefBlocks, node, "def");
-      const RefBlocks = await sy.getRefBlocks(node.id);
-      await addNodesAndEdges(RefBlocks, node, "ref");
+      for (let child of ChildrenBlocks) {
+        let node = await buildNode(child);
+        await addNodeToTreeData(node);
+      }
+      let option = graph.getOption();
+      option.series[0].data = treeData; //todo 更稳妥的方式是使用Id检索
+      graph.setOption(option);
+      //console.log("option", option);
+      //console.log("ChildrenBlocks", ChildrenBlocks);
     }
 
     async function sleep(time: number) {
