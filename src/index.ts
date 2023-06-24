@@ -52,7 +52,7 @@ export default class networkCustom extends Plugin {
       </symbol>
       `);
     }
-    //@ts-ignore
+
     const dock = this.addDock({
       config: {
         position: "RightTop",
@@ -127,41 +127,41 @@ export default class networkCustom extends Plugin {
       }
       const grid = { left: 50, right: 50, bottom: 50, top: 50 };
       let graphOption: ECOption = {
-        grid: grid,
-        xAxis: {
-          type: "value",
+        grid: {
+          left: grid.left,
+          right: grid.right,
+          bottom: grid.bottom,
+          top: grid.top,
         },
-        yAxis: {
-          type: "value",
-          inverse: true,
-        },
+        xAxis: [
+          {
+            type: "value",
+            min: 0,
+            max: 500,
+            show: false,
+          },
+        ],
+        yAxis: [
+          {
+            type: "value",
+            inverse: true,
+            min: 0,
+            max: 500,
+            show: false,
+          },
+        ],
         series: [
           {
             type: "tree",
             id: "blockTree",
             data: treeData,
             z: 10,
+            initialTreeDepth: -1,
             label: {
               show: true,
               color: "#F0FFFF",
               textShadowColor: "#000000",
               position: "top",
-              formatter: (params: { data }) => {
-                //todo 调试用
-                let labelName = params.data.labelName;
-                let info = getDataInfo(0);
-                let idList = info._idList as BlockId[];
-                let itemLayouts = info._itemLayouts as {
-                  x: number;
-                  y: number;
-                }[];
-                let { x, y } = getTreeNodePosition(
-                  params.data,
-                  idList,
-                  itemLayouts
-                );
-                return `${labelName}:${Math.round(x)},${Math.round(y)}`;
-              },
             },
           },
           {
@@ -172,33 +172,22 @@ export default class networkCustom extends Plugin {
             coordinateSystem: "cartesian2d",
             z: 5,
             label: {
-              show: true,
+              show: false,
               position: "bottom",
-              formatter: (params: { data }) => {
-                //todo 调试用
-                if (params.data.x) {
-                  return `${params.data.labelName}:${params.data.x},${params.data.y}`;
-                }
-                let label = params.data.labelName + ":";
-                for (let value of params.data.value) {
-                  label = label + Math.round(value).toString() + ",";
-                }
-                return label;
-              },
             },
             edgeSymbol: ["none", "arrow"],
           },
         ],
       };
+
       //*统一树图和关系图尺寸grid
       for (let key of Object.keys(grid)) {
         graphOption.series[0][key] = grid[key];
       }
+      //graphOption = forDevInit(graphOption);
       graph.setOption(graphOption);
-      graph.on("contextmenu", (params) => {
-        graphContextMenu(params);
-      });
-
+      graph.on("contextmenu", onContextMenu);
+      graph.on("click", onNodeClick);
       const startNodeId = sy.getFocusNodeId();
       if (!startNodeId) {
         sy.pushErrMsg(this.i18n.prefix + this.i18n.startNodeError);
@@ -209,6 +198,33 @@ export default class networkCustom extends Plugin {
       await addNodeToTreeDataAndRefresh(startNodeModel);
       await expandNode(startNodeModel);
     }
+    function forDevInit(graphOption: ECOption) {
+      graphOption.series[0].label.formatter = (params: { data }) => {
+        let labelName = params.data.labelName;
+        let { idList, itemLayouts } = getTreeNodePositionParams();
+        let { x, y } = getTreeNodePosition(params.data, idList, itemLayouts);
+        return `${labelName}:${Math.round(x)},${Math.round(y)}`;
+      };
+      graphOption.series[1].label.formatter = (params: { data }) => {
+        if (params.data.x) {
+          return `${params.data.labelName}:${params.data.x},${params.data.y}`;
+        }
+        let label = params.data.labelName + ":";
+        for (let value of params.data.value) {
+          label = label + Math.round(value).toString() + ",";
+        }
+        return label;
+      };
+      graphOption.series[1].label.show = true;
+      graphOption.xAxis[0].show = true;
+      graphOption.yAxis[0].show = true;
+      graph.on("finished", () => {
+        console.log("info", getDataInfo(0));
+        console.log("info", getDataInfo(1));
+        console.log("option", graph.getOption());
+      });
+      return graphOption;
+    }
     function refreshGraph() {
       let option = graph.getOption();
       option.series[0].data = treeData; //todo 更稳妥的方式是使用Id检索
@@ -218,22 +234,47 @@ export default class networkCustom extends Plugin {
     }
     function getDataInfo(index: number) {
       //https://github.com/apache/echarts/issues/5614
-      //@ts-ignore
+      //将echarts/types/dist/shared中getModel设为pubilic
       let model = graph.getModel();
       let series = model.getSeriesByIndex(index);
       let info = series.getData();
       return info;
     }
-    function graphContextMenu(params: echarts.ECElementEvent) {
+    function reComputePosition() {
+      //*重算关系图位置
+      let { idList, itemLayouts } = getTreeNodePositionParams();
+      for (let node of graphData) {
+        let { x, y } = getTreeNodePosition(node, idList, itemLayouts);
+        node.value = [x, y];
+      }
+    }
+    function onNodeClick(params: {
+      data;
+      componentSubType: string;
+      collapsed?: boolean;
+    }) {
+      switch (params.componentSubType) {
+        case "tree":
+          reComputePosition();
+          //*记忆节点折叠情况
+          let treeNode = findTreeDataById(treeData, params.data.id);
+          treeNode.collapsed = params.collapsed;
+          refreshGraph();
+          break;
+        case "graph":
+          break;
+      }
+    }
+    function onContextMenu(params: echarts.ECElementEvent) {
       const menu = new Menu("graphMenu", () => {
-        console.log("菜单");
+        //console.log("菜单");
       });
       menu.addItem({
         icon: "",
         label: "展开节点",
         click: () => {
           expandNode(params.data as nodeModel);
-          console.log(params);
+          //console.log(params);
         },
       });
       menu.open({
@@ -249,10 +290,15 @@ export default class networkCustom extends Plugin {
      * @returns
      */
     async function buildNode(block: Block) {
-      //@ts-ignore
-      let node: nodeModel = { ...block, children: [] };
-      node.name = buildNodeLabel(block);
-      node.labelName = node.name;
+      let node: nodeModel;
+      let labelName = buildNodeLabel(block);
+      node = {
+        ...block,
+        children: [],
+        name: labelName,
+        labelName: labelName,
+        value: [0, 0],
+      };
       const parentBlock = await sy.getParentBlock(block);
       if (parentBlock) {
         node.parent_id = parentBlock.id;
@@ -392,10 +438,8 @@ export default class networkCustom extends Plugin {
         return value.id == node.id;
       });
       //*计算node位置
-      let info = getDataInfo(0);
-      let idList = info._idList as BlockId[];
-      let itemLayouts = info._itemLayouts as { x: number; y: number }[];
-      const treeLikeNode = node as unknown as nodeModel;
+      let { idList, itemLayouts } = getTreeNodePositionParams();
+      const treeLikeNode = node;
       let { x, y } = getTreeNodePosition(treeLikeNode, idList, itemLayouts);
       node.value = [x, y];
       /*
@@ -413,8 +457,17 @@ export default class networkCustom extends Plugin {
         nodeAdded = node;
       }
     }
+    function getTreeNodePositionParams() {
+      let info = getDataInfo(0);
+      let idList = info._idList as BlockId[];
+      let itemLayouts = info._itemLayouts as {
+        x: number;
+        y: number;
+      }[];
+      return { idList: idList, itemLayouts: itemLayouts };
+    }
     function getTreeNodePosition(
-      node: nodeModel,
+      node: nodeModel | graphNodeModel,
       idList: BlockId[],
       itemLayouts: { x: number; y: number }[]
     ) {
@@ -464,10 +517,8 @@ export default class networkCustom extends Plugin {
         defNodes.push(node);
       }
       addNodesAndEdges(defNodes, node, "def");
+      reComputePosition();
       refreshGraph();
-      console.log("info", getDataInfo(0));
-      console.log("info", getDataInfo(1));
-      console.log("option", graph.getOption());
     }
 
     async function sleep(time: number) {
@@ -541,4 +592,5 @@ interface graphNodeModel extends GraphNodeItemOption {
   sort: number;
   created: string;
   updated: string;
+  value: [number, number];
 }
