@@ -32,7 +32,7 @@ export default class networkCustom extends Plugin {
   private treeData: nodeModel[] = [];
   private graphData: graphNodeModel[] = [];
   private graphLinks: edgeModel[] = [];
-  private tagTreeData: TreeSeriesOption["data"] = [];
+  //private tagTreeData: TreeSeriesOption["data"] = [];
   //private graphOption: ECOption;
   onload() {
     let graph = this.graph;
@@ -41,7 +41,7 @@ export default class networkCustom extends Plugin {
     let graphLinks = this.graphLinks;
     this.lastTabWidth = 0;
     let treeData = this.treeData;
-    let tagTreeData = this.tagTreeData;
+    //let tagTreeData = this.tagTreeData;
     //let graphOption = this.graphOption;
     // 图标的制作参见帮助文档
     if (!document.getElementById("icon_networkCustom")) {
@@ -186,8 +186,10 @@ export default class networkCustom extends Plugin {
       }
       //graphOption = forDevInit(graphOption);
       graph.setOption(graphOption);
+      //---设置动作---
       graph.on("contextmenu", onContextMenu);
       graph.on("click", onNodeClick);
+      //---清空并添加初始节点---
       const startNodeId = sy.getFocusNodeId();
       if (!startNodeId) {
         sy.pushErrMsg(this.i18n.prefix + this.i18n.startNodeError);
@@ -195,6 +197,15 @@ export default class networkCustom extends Plugin {
       }
       const startBlock = await sy.getBlockById(startNodeId);
       const startNodeModel = await buildNode(startBlock);
+      let rootNode: nodeModel = structuredClone(startNodeModel);
+      for (let key of Object.keys(rootNode)) {
+        rootNode[key] = "";
+      }
+      rootNode.children = [];
+      rootNode.id = "root";
+      treeData = [rootNode];
+      graphData = [];
+      graphLinks = [];
       await addNodeToTreeDataAndRefresh(startNodeModel);
       await expandNode(startNodeModel);
     }
@@ -302,6 +313,8 @@ export default class networkCustom extends Plugin {
       const parentBlock = await sy.getParentBlock(block);
       if (parentBlock) {
         node.parent_id = parentBlock.id;
+      } else {
+        node.parent_id = "root";
       }
       return node;
     }
@@ -348,12 +361,14 @@ export default class networkCustom extends Plugin {
     async function addNodeToTreeData(node: nodeModel) {
       //console.log("添加节点到treeData", node.labelName);
       //*node为box
-      if (!node.type && node.id) {
-        let added = treeData.find((child) => {
+      if (node.type == "box") {
+        //&& node.id
+        console.log(treeData);
+        let added = treeData[0].children.find((child) => {
           return child.id == node.id;
         });
         if (!added) {
-          treeData.push(node);
+          treeData[0].children.push(node);
           return;
         }
         return;
@@ -495,6 +510,7 @@ export default class networkCustom extends Plugin {
       }
       //*children
       const childrenBlocks = await sy.getChildrenBlocks(node.id);
+      //console.log(childrenBlocks);
       for (let child of childrenBlocks) {
         let node = await buildNode(child);
         await addNodeToTreeDataAndRefresh(node);
@@ -538,59 +554,24 @@ export default class networkCustom extends Plugin {
   }
 }
 type edgeType = "parent" | "child" | "ref" | "def";
+interface nodeModel extends Block {}
 interface nodeModel extends TreeSeriesNodeItemOption {
   labelName: string;
-  //todo extends Block
   id: BlockId;
   parent_id?: BlockId; //?会改变
-  root_id: DocumentId;
-  hash: string;
-  box: string;
-  path: string;
-  hpath: string;
   name: string; //?会改变
-  alias: string;
-  memo: string;
-  tag: string;
-  content: string;
-  fcontent?: string;
-  markdown: string;
-  length: number;
-  type: BlockType;
-  subtype: BlockSubType;
-  ial?: { [key: string]: string };
-  sort: number;
-  created: string;
-  updated: string;
   children: nodeModel[]; //?
   //?不可行，会无限clone parent: nodeModel;
+  value: [number, number];
 }
 interface edgeModel extends GraphEdgeItemOption {
   labelName: string;
 }
+interface graphNodeModel extends Block {}
 interface graphNodeModel extends GraphNodeItemOption {
   labelName: string;
-  //todo extends Block
   id: BlockId;
   parent_id?: BlockId; //?会改变
-  root_id: DocumentId;
-  hash: string;
-  box: string;
-  path: string;
-  hpath: string;
   name: string; //?会改变
-  alias: string;
-  memo: string;
-  tag: string;
-  content: string;
-  fcontent?: string;
-  markdown: string;
-  length: number;
-  type: BlockType;
-  subtype: BlockSubType;
-  ial?: { [key: string]: string };
-  sort: number;
-  created: string;
-  updated: string;
   value: [number, number];
 }
