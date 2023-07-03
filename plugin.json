@@ -1,26 +1,24 @@
 {
-  "name": "siyuanPligin-networkCustom",
+  "name": "siyuanPligin-TreeAndGraph",
   "author": "dualwind",
   "url": "",
-  "version": "0.1.3",
+  "version": "1.0.0",
   "minAppVersion": "2.9.0",
   "backends": ["windows", "linux", "darwin"],
   "frontends": ["desktop"],
   "displayName": {
-    "en_US": "networkCustom",
-    "zh_CN": "可交互关系图"
+    "en_US": "TreeAndGraph",
+    "zh_CN": "树状关系图"
   },
   "description": {
-    "en_US": "networkCustom",
-    "zh_CN": "也不知道有什么用，就是觉得这样很炫"
+    "en_US": "Display parent-child and link relationships in a treemap",
+    "zh_CN": "将父子关系和链接关系显示在树状图中"
   },
   "readme": {
     "en_US": "README.md",
     "zh_CN": "README_zh_CN.md"
   },
   "funding": {
-    "custom": [
-      "https://afdian.net/a/frostime"
-    ]
+    "custom": []
   }
 }

@@ -2,7 +2,7 @@ import { Plugin, getFrontend, getBackend, Menu } from "siyuan";
 import "./index.scss";
 import * as sy from "../../siyuanPlugin-common/siyuan-api";
 //import { merge } from "lodash";
-//---eacharts---
+//↓↓↓↓↓eacharts↓↓↓↓↓
 import * as echarts from "echarts/core";
 import { CanvasRenderer } from "echarts/renderers";
 import {
@@ -22,7 +22,7 @@ echarts.use([TreeChart, GraphChart, CanvasRenderer, GridComponent]);
 type ECOption = echarts.ComposeOption<
   TreeSeriesOption | GraphSeriesOption | GridComponentOption
 >;
-//------
+//↑↑↑↑↑eacharts↑↑↑↑↑
 const STORAGE_NAME = "menu-config";
 const DOCK_TYPE = "dock_tab";
 export default class networkCustom extends Plugin {
@@ -59,7 +59,7 @@ export default class networkCustom extends Plugin {
         position: "RightTop",
         size: { width: 400, height: 600 },
         icon: "icon_networkCustom",
-        title: "可交互关系图",
+        title: i18n.pluginName,
       },
       data: {
         text: "",
@@ -74,7 +74,7 @@ export default class networkCustom extends Plugin {
                   <svg>
                       <use xlink:href="#icon_networkCustom"></use>
                   </svg>
-                  可交互关系图
+                  ${i18n.pluginName}
               </div>
               <span class="fn__flex-1 fn__space"></span>
           </div>
@@ -95,13 +95,7 @@ export default class networkCustom extends Plugin {
         const container = document.getElementById("container_networkCustom");
         const widthNum = container.offsetWidth;
         const heightNum = container.offsetHeight;
-        console.log(
-          "resizeFunction",
-          "lastTabWidth:",
-          lastTabWidth,
-          "widthNum:",
-          widthNum
-        );
+        //console.log("resizeFunction","lastTabWidth:",lastTabWidth,"widthNum:", widthNum);
         if (lastTabWidth == widthNum) {
           return;
         }
@@ -131,7 +125,10 @@ export default class networkCustom extends Plugin {
     });
     console.log(this.i18n.prefix, this.i18n.helloPlugin);
     async function resizeGraph(widthNum: number, heightNum: number) {
-      let graphOption = graph.getOption();
+      if (!graph) {
+        return;
+      }
+      //let graphOption = graph.getOption();
       graph.resize({
         width: widthNum,
         height: heightNum,
@@ -139,14 +136,23 @@ export default class networkCustom extends Plugin {
           duration: 200,
         },
       });
+      /*
       graphOption.xAxis[0].max =
         widthNum - graphOption.grid[0].left - graphOption.grid[0].right;
       graphOption.yAxis[0].max =
         heightNum - graphOption.grid[0].top - graphOption.grid[0].bottom;
-      graph.setOption(graphOption);
+      graph.setOption(graphOption);*/
       reComputePosition();
       refreshGraph(1);
     }
+
+    /**
+     * 初始化图表
+     * @param container
+     * @param widthNum
+     * @param heightNum
+     * @returns
+     */
     async function reInitGraph(
       container: HTMLElement,
       widthNum: number,
@@ -159,30 +165,35 @@ export default class networkCustom extends Plugin {
         });
         //console.log("init", widthNum, heightNum);
       }
-      const grid = { left: 50, right: 50, bottom: 50, top: 50 };
+      const grid = {
+        left: 50,
+        width: widthNum - 50 - 50, //-left-right
+        top: 30,
+        height: heightNum - 30 - 30, //-top-bottom
+      };
       let graphOption: ECOption = {
         grid: [
           {
             left: grid.left,
-            right: grid.right,
-            bottom: grid.bottom,
+            width: grid.width,
             top: grid.top,
+            height: grid.height,
           },
         ],
         xAxis: [
           {
             type: "value",
             min: 0,
-            max: widthNum - grid.left - grid.right,
+            max: grid.width,
             show: false,
           },
         ],
         yAxis: [
           {
             type: "value",
-            inverse: true,
             min: 0,
-            max: heightNum - grid.top - grid.bottom,
+            max: grid.height,
+            inverse: true,
             show: false,
           },
         ],
@@ -199,13 +210,17 @@ export default class networkCustom extends Plugin {
               textShadowColor: "#000000",
               position: "top",
             },
+            roam: true,
           },
           {
             type: "graph",
             id: "blockGraph",
             data: graphData,
             links: graphLinks,
+            layout: "none",
             coordinateSystem: "cartesian2d",
+            xAxisIndex: 0,
+            yAxisIndex: 0,
             z: 5,
             label: {
               show: false,
@@ -218,12 +233,16 @@ export default class networkCustom extends Plugin {
       //*统一树图和关系图尺寸grid
       for (let key of Object.keys(grid)) {
         graphOption.series[0][key] = grid[key];
+        //graphOption.series[1][key] = grid[key];
       }
-      //graphOption = forDevInit(graphOption);
+      //graphOption = forDevInit(graphOption); //调试用
       graph.setOption(graphOption);
+      graphData = []; //清空数据
+      graphLinks = [];
       //---设置动作---
       graph.on("contextmenu", onContextMenu);
       graph.on("click", onNodeClick);
+      graph.on("treeroam", reComputePosition);
       //---清空并添加初始节点---
       const startNodeId = sy.getFocusNodeId();
       if (!startNodeId) {
@@ -239,27 +258,39 @@ export default class networkCustom extends Plugin {
       rootNode.children = [];
       rootNode.id = "root";
       treeData = [rootNode];
-      graphData = [];
-      graphLinks = [];
       await addNodeToTreeDataAndRefresh(startNodeModel);
+      //addBorderGraphData();
       await expandNode(startNodeModel);
+    }
+    /**
+     * @deprecated
+     * 关系图默认会缩放，用两个点固定关系图的视图，必须在setOption后执行
+     */
+    function addBorderGraphData() {
+      graphData.push({ name: "left-top", x: 0, y: 0, symbol: "circle" });
+      let node = { name: "right-bottom", symbol: "circle" };
+      let treeSeries = getSeries(0);
+      node.x = treeSeries.layoutInfo.width;
+      node.y = treeSeries.layoutInfo.height;
+      graphData.push(node);
+      refreshGraph(1);
     }
     function forDevInit(graphOption: ECOption) {
       graphOption.series[0].label.formatter = (params: { data }) => {
         let labelName = params.data.labelName;
         let { idList, itemLayouts } = getTreeNodePositionParams();
         let { x, y } = getTreeNodePosition(params.data, idList, itemLayouts);
-        return `${labelName}:${Math.round(x)},${Math.round(y)}`;
+        x = Math.round(x);
+        y = Math.round(y);
+        //let pixel = graph.convertToPixel({ seriesIndex: 0 }, [x, y]);
+        return `${labelName}:${x},${y}`;
       };
       graphOption.series[1].label.formatter = (params: { data }) => {
-        if (params.data.x) {
-          return `${params.data.labelName}:${params.data.x},${params.data.y}`;
-        }
-        let label = params.data.labelName + ":";
-        for (let value of params.data.value) {
-          label = label + Math.round(value).toString() + ",";
-        }
-        return label;
+        let x = Math.round(params.data.value[0]);
+        let y = Math.round(params.data.value[1]);
+        let labelName = params.data.labelName;
+        //let pixel = graph.convertToPixel({ seriesIndex: 1 }, [x, y]);
+        return `${labelName}:${x},${y}`;
       };
       graphOption.series[1].label.show = true;
       graphOption.xAxis[0].show = true;
@@ -267,9 +298,14 @@ export default class networkCustom extends Plugin {
       graph.on("finished", () => {
         console.groupCollapsed("调试信息");
         try {
+          let model = graph.getModel();
+          console.log("model", model);
+          console.log("TreeModel", model.getSeriesByIndex(0));
+          console.log("graphModel", model.getSeriesByIndex(1));
           console.log("TreeInfo", getDataInfo(0));
           console.log("graphInfo", getDataInfo(1));
           console.log("option", graph.getOption());
+          console.log("graph", graph);
         } catch (e) {
           console.log("获取信息失败");
         } finally {
@@ -279,7 +315,7 @@ export default class networkCustom extends Plugin {
       return graphOption;
     }
     /**
-     *
+     * 注意，只刷新数据，其他设置无法改变
      * @param index 0树状图，1关系图，2全部
      */
     function refreshGraph(index: 0 | 1 | 2) {
@@ -296,18 +332,67 @@ export default class networkCustom extends Plugin {
     function getDataInfo(index: number) {
       //https://github.com/apache/echarts/issues/5614
       //将echarts/types/dist/shared中getModel设为pubilic
-      let model = graph.getModel();
-      let series = model.getSeriesByIndex(index);
+      let series = getSeries(index);
       let info = series.getData();
       return info;
     }
+    function getSeries(index: number) {
+      let model = graph.getModel();
+      let series = model.getSeriesByIndex(index);
+      return series;
+    }
+    /**
+     * 重算关系图位置
+     */
     function reComputePosition() {
-      //*重算关系图位置
       let { idList, itemLayouts } = getTreeNodePositionParams();
+      let option = graph.getOption();
       for (let node of graphData) {
-        let { x, y } = getTreeNodePosition(node, idList, itemLayouts);
-        node.value = [x, y];
+        node = treePosition2GraphValue(
+          node,
+          idList,
+          itemLayouts,
+          option.grid[0].left,
+          option.grid[0].top
+        );
       }
+      refreshGraph(1);
+    }
+    /**
+     * todo
+     * @returns
+     */
+    function treePosition2GraphValueParams() {
+      const { idList, itemLayouts } = getTreeNodePositionParams();
+      const option = graph.getOption();
+      return {
+        idList: idList,
+        itemLayouts: itemLayouts,
+        left: option.grid[0].left,
+        top: option.grid[0].top,
+      };
+    }
+    function treePosition2GraphValue(
+      node: graphNodeModel,
+      idList: string[],
+      itemLayouts: { x: number; y: number }[],
+      left: number,
+      top: number,
+      index?: number
+    ) {
+      const tree = index ? getSeries(2) : getSeries(0); //todo 标签预留
+      let { x, y } = getTreeNodePosition(node, idList, itemLayouts);
+      //node.value = [x, y];
+      //node.x = x;
+      //node.y = y;
+      let realPosition = tree.coordinateSystem.dataToPoint(
+        [x, y]
+        //tree.coordinateSystem._zoom
+      );
+      realPosition[0] += left * tree.coordinateSystem._zoom;
+      realPosition[1] += top * tree.coordinateSystem._zoom;
+      node.value = graph.convertFromPixel({ gridIndex: 0 }, realPosition);
+      return node;
     }
     function onNodeClick(params: {
       data;
@@ -358,7 +443,7 @@ export default class networkCustom extends Plugin {
         children: [],
         name: labelName,
         labelName: labelName,
-        value: [0, 0],
+        //value: [0, 0],
       };
       const parentBlock = await sy.getParentBlock(block);
       if (parentBlock) {
@@ -490,8 +575,8 @@ export default class networkCustom extends Plugin {
         if (!edge.target && !edge.source) {
           continue;
         }
-        let edgeAdded = graphLinks.find((value) => {
-          return value.source == edge.source && value.target == edge.target;
+        let edgeAdded = graphLinks.find((item) => {
+          return item.source == edge.source && item.target == edge.target;
         });
         if (!edgeAdded) {
           graphLinks.push(edge);
@@ -499,29 +584,29 @@ export default class networkCustom extends Plugin {
       }
     }
     function addNodeToGraphData(node: graphNodeModel) {
-      let nodeAdded = graphData.find((value) => {
-        return value.id == node.id;
+      let nodeAdded = graphData.find((item) => {
+        return item.id == node.id;
       });
       //*计算node位置
       let { idList, itemLayouts } = getTreeNodePositionParams();
-      const treeLikeNode = node;
-      let { x, y } = getTreeNodePosition(treeLikeNode, idList, itemLayouts);
-      node.value = [x, y];
-      /*
-      let realPosition = graph.convertToPixel({ seriesId: "blockTree" }, [
-        x,
-        y,
-      ]);
-      [node.x, node.y] = graph.convertFromPixel(
-        { seriesId: "blockGraph" },
-        realPosition
-      );*/
+      const option = graph.getOption();
+      node = treePosition2GraphValue(
+        node,
+        idList,
+        itemLayouts,
+        option.grid[0].left,
+        option.grid[0].top
+      );
       if (!nodeAdded) {
         graphData.push(node);
       } else {
         nodeAdded = node;
       }
     }
+    /**
+     * 生成getTreeNodePosition的必备参数，防止反复获取
+     * @returns idList,itemLayouts
+     */
     function getTreeNodePositionParams() {
       let info = getDataInfo(0);
       let idList = info._idList as BlockId[];
@@ -532,10 +617,13 @@ export default class networkCustom extends Plugin {
       return { idList: idList, itemLayouts: itemLayouts };
     }
     function getTreeNodePosition(
-      node: nodeModel | graphNodeModel,
+      node: graphNodeModel,
       idList: BlockId[],
       itemLayouts: { x: number; y: number }[]
-    ) {
+    ): {
+      x: number;
+      y: number;
+    } {
       let index = idList.findIndex((item) => {
         return item == node.id;
       });
@@ -548,7 +636,7 @@ export default class networkCustom extends Plugin {
           console.log("此时的图数据", graph.getOption());
           throw "在tree中找不到父节点";
         }
-        return getTreeNodePosition(parent, idList, itemLayouts);
+        return getTreeNodePosition(buildGraphNode(parent), idList, itemLayouts);
       } else {
         return itemLayouts[index];
       }
@@ -612,7 +700,7 @@ interface nodeModel extends TreeSeriesNodeItemOption {
   name: string; //?会改变
   children: nodeModel[]; //?
   //?不可行，会无限clone parent: nodeModel;
-  value: [number, number];
+  //value: [number, number];
 }
 interface edgeModel extends GraphEdgeItemOption {
   labelName: string;

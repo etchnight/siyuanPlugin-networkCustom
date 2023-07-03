@@ -13,5 +13,6 @@
         "makesure": "使用这个模板之前，请阅读<a href=\"https://github.com/siyuan-note/plugin-sample\">官方教程</a>, 确保自己已经理解了插件的基本开发流程。"
     },
     "startNodeError":"初始化失败，无法找到光标所在块，请将光标置于某块中再打开面板",
-    "prefix":"[可交互关系图]"
+    "prefix":"[可交互关系图]",
+    "pluginName":"树状关系图"
 }
