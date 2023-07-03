@@ -1,7 +1,7 @@
 {
   "name": "siyuanPligin-TreeAndGraph",
   "author": "dualwind",
-  "url": "",
+  "url": "https://github.com/etchnight/siyuanPlugin-networkCustom",
   "version": "1.0.0",
   "minAppVersion": "2.9.0",
   "backends": ["windows", "linux", "darwin"],
