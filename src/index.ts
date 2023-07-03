@@ -207,10 +207,15 @@ export default class networkCustom extends Plugin {
             label: {
               show: true,
               color: "#F0FFFF",
-              textShadowColor: "#000000",
               position: "top",
+              textBorderColor: "#111f2c",
+              textBorderWidth: 2,
             },
             roam: true,
+            //lineStyle: {
+            //  width: 15,
+            //},
+            //symbolSize: 50,
           },
           {
             type: "graph",
@@ -227,6 +232,10 @@ export default class networkCustom extends Plugin {
               position: "bottom",
             },
             edgeSymbol: ["none", "arrow"],
+            //lineStyle: {
+            //  width: 15,
+            //},
+            //edgeSymbolSize: 50,
           },
         ],
       };
