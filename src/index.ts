@@ -1,6 +1,7 @@
 import { Plugin, getFrontend, getBackend, Menu } from "siyuan";
 import "./index.scss";
 import * as sy from "../../siyuanPlugin-common/siyuan-api";
+import * as syTypes from "../../siyuanPlugin-common/types/siyuan-api";
 //import { merge } from "lodash";
 //↓↓↓↓↓eacharts↓↓↓↓↓
 import * as echarts from "echarts/core";
@@ -252,6 +253,7 @@ export default class networkCustom extends Plugin {
       graph.on("contextmenu", onContextMenu);
       graph.on("click", onNodeClick);
       graph.on("treeroam", reComputePosition);
+      graph.on("mouseover", onMouseOver);
       //---清空并添加初始节点---
       const startNodeId = sy.getFocusNodeId();
       if (!startNodeId) {
@@ -271,19 +273,7 @@ export default class networkCustom extends Plugin {
       //addBorderGraphData();
       await expandNode(startNodeModel);
     }
-    /**
-     * @deprecated
-     * 关系图默认会缩放，用两个点固定关系图的视图，必须在setOption后执行
-     */
-    function addBorderGraphData() {
-      graphData.push({ name: "left-top", x: 0, y: 0, symbol: "circle" });
-      let node = { name: "right-bottom", symbol: "circle" };
-      let treeSeries = getSeries(0);
-      node.x = treeSeries.layoutInfo.width;
-      node.y = treeSeries.layoutInfo.height;
-      graphData.push(node);
-      refreshGraph(1);
-    }
+
     function forDevInit(graphOption: ECOption) {
       graphOption.series[0].label.formatter = (params: { data }) => {
         let labelName = params.data.labelName;
@@ -368,7 +358,7 @@ export default class networkCustom extends Plugin {
       refreshGraph(1);
     }
     /**
-     * todo
+     * todo 集中获取treePosition2GraphValue所需参数
      * @returns
      */
     function treePosition2GraphValueParams() {
@@ -400,14 +390,16 @@ export default class networkCustom extends Plugin {
       );
       realPosition[0] += left * tree.coordinateSystem._zoom;
       realPosition[1] += top * tree.coordinateSystem._zoom;
-      node.value = graph.convertFromPixel({ gridIndex: 0 }, realPosition);
+      node.value = graph.convertFromPixel(
+        { gridIndex: 0 },
+        realPosition
+      ) as unknown as [number, number];
       return node;
     }
-    function onNodeClick(params: {
-      data;
-      componentSubType: string;
-      collapsed?: boolean;
-    }) {
+    function onMouseOver(params: echarts.ECElementEvent) {
+      console.log(params);
+    }
+    function onNodeClick(params: ECElementEventParams) {
       switch (params.componentSubType) {
         case "tree":
           reComputePosition();
@@ -420,7 +412,7 @@ export default class networkCustom extends Plugin {
           break;
       }
     }
-    function onContextMenu(params: echarts.ECElementEvent) {
+    function onContextMenu(params: ECElementEventParams) {
       const menu = new Menu("graphMenu", () => {
         //console.log("菜单");
       });
@@ -444,7 +436,7 @@ export default class networkCustom extends Plugin {
      * @param block
      * @returns
      */
-    async function buildNode(block: Block) {
+    async function buildNode(block: syTypes.Block) {
       let node: nodeModel;
       let labelName = buildNodeLabel(block);
       node = {
@@ -462,7 +454,7 @@ export default class networkCustom extends Plugin {
       }
       return node;
     }
-    function buildNodeLabel(block: Block): string {
+    function buildNodeLabel(block: syTypes.Block): string {
       if (block.name) {
         return block.name;
       }
@@ -483,6 +475,8 @@ export default class networkCustom extends Plugin {
       }
     }
     function buildGraphNode(node: nodeModel) {
+      //!强制转换
+      //@ts-ignore
       let graphNode: graphNodeModel = structuredClone(node);
       //graphNode.labelName = node.name;
       graphNode.name = node.id;
@@ -491,6 +485,7 @@ export default class networkCustom extends Plugin {
     }
     function buildEdge(source: graphNodeModel, target: graphNodeModel) {
       let link: edgeModel = {
+        id: `${source.name}-${target.name}`,
         source: source.name,
         target: target.name,
         labelName: "", //todo
@@ -618,7 +613,7 @@ export default class networkCustom extends Plugin {
      */
     function getTreeNodePositionParams() {
       let info = getDataInfo(0);
-      let idList = info._idList as BlockId[];
+      let idList = info._idList as syTypes.BlockId[];
       let itemLayouts = info._itemLayouts as {
         x: number;
         y: number;
@@ -627,7 +622,7 @@ export default class networkCustom extends Plugin {
     }
     function getTreeNodePosition(
       node: graphNodeModel,
-      idList: BlockId[],
+      idList: syTypes.BlockId[],
       itemLayouts: { x: number; y: number }[]
     ): {
       x: number;
@@ -701,24 +696,28 @@ export default class networkCustom extends Plugin {
   }
 }
 type edgeType = "parent" | "child" | "ref" | "def";
-interface nodeModel extends Block {}
+interface nodeModel extends syTypes.Block {}
 interface nodeModel extends TreeSeriesNodeItemOption {
   labelName: string;
-  id: BlockId;
-  parent_id?: BlockId; //?会改变
+  id: syTypes.BlockId;
+  parent_id?: syTypes.BlockId; //?会改变
   name: string; //?会改变
   children: nodeModel[]; //?
   //?不可行，会无限clone parent: nodeModel;
   //value: [number, number];
 }
 interface edgeModel extends GraphEdgeItemOption {
+  id: string;
   labelName: string;
 }
-interface graphNodeModel extends Block {}
+interface graphNodeModel extends syTypes.Block {}
 interface graphNodeModel extends GraphNodeItemOption {
   labelName: string;
-  id: BlockId;
-  parent_id?: BlockId; //?会改变
+  id: syTypes.BlockId;
+  parent_id?: syTypes.BlockId; //?会改变
   name: string; //?会改变
   value: [number, number];
+}
+interface ECElementEventParams extends echarts.ECElementEvent {
+  data: nodeModel | edgeModel | graphNodeModel;
 }
