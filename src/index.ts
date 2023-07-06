@@ -3,7 +3,7 @@ import "./index.scss";
 import * as sy from "../../siyuanPlugin-common/siyuan-api";
 import * as syTypes from "../../siyuanPlugin-common/types/siyuan-api";
 //import { merge } from "lodash";
-//↓↓↓↓↓eacharts↓↓↓↓↓
+//*↓↓↓↓↓eacharts↓↓↓↓↓
 import * as echarts from "echarts/core";
 import { CanvasRenderer } from "echarts/renderers";
 import {
@@ -23,7 +23,7 @@ echarts.use([TreeChart, GraphChart, CanvasRenderer, GridComponent]);
 type ECOption = echarts.ComposeOption<
   TreeSeriesOption | GraphSeriesOption | GridComponentOption
 >;
-//↑↑↑↑↑eacharts↑↑↑↑↑
+//*↑↑↑↑↑eacharts↑↑↑↑↑
 const STORAGE_NAME = "menu-config";
 const DOCK_TYPE = "dock_tab";
 export default class networkCustom extends Plugin {
@@ -213,6 +213,20 @@ export default class networkCustom extends Plugin {
               textBorderWidth: 2,
             },
             roam: true,
+            emphasis: {
+              //高亮显示所有内容
+              disabled: false,
+              label: {
+                formatter: (params: { data }) => {
+                  return params.data.content;
+                },
+                backgroundColor: "#000000",
+                padding: 4,
+                width: 150,
+                overflow: "break",
+                lineHeight: 15,
+              },
+            },
             //lineStyle: {
             //  width: 15,
             //},
@@ -233,6 +247,7 @@ export default class networkCustom extends Plugin {
               position: "bottom",
             },
             edgeSymbol: ["none", "arrow"],
+            itemStyle: { opacity: 0 },
             //lineStyle: {
             //  width: 15,
             //},
@@ -396,8 +411,18 @@ export default class networkCustom extends Plugin {
       ) as unknown as [number, number];
       return node;
     }
-    function onMouseOver(params: echarts.ECElementEvent) {
-      console.log(params);
+    /**
+     * @deprecated 目前是在配置中设置的高亮方式
+     * @param params
+     */
+    function onMouseOver(params: ECElementEventParams) {
+      //console.log(params);
+      /*
+      graph.dispatchAction({
+        type: "highlight",
+        seriesId: "blockTree",
+        name: [params.data.id],
+      });*/
     }
     function onNodeClick(params: ECElementEventParams) {
       switch (params.componentSubType) {
