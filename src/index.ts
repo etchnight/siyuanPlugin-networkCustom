@@ -1,4 +1,4 @@
-import { Plugin, getFrontend, getBackend, Menu } from "siyuan";
+import { Plugin, getFrontend, getBackend, Menu, openTab } from "siyuan";
 import "./index.scss";
 import * as sy from "../../siyuanPlugin-common/siyuan-api";
 import * as syTypes from "../../siyuanPlugin-common/types/siyuan-api";
@@ -268,7 +268,7 @@ export default class networkCustom extends Plugin {
       graph.on("contextmenu", onContextMenu);
       graph.on("click", onNodeClick);
       graph.on("treeroam", reComputePosition);
-      graph.on("mouseover", onMouseOver);
+      //graph.on("mouseover", onMouseOver);
       //---清空并添加初始节点---
       const startNodeId = sy.getFocusNodeId();
       if (!startNodeId) {
@@ -416,7 +416,7 @@ export default class networkCustom extends Plugin {
      * @param params
      */
     function onMouseOver(params: ECElementEventParams) {
-      //console.log(params);
+      console.log(params);
       /*
       graph.dispatchAction({
         type: "highlight",
@@ -447,6 +447,20 @@ export default class networkCustom extends Plugin {
         click: () => {
           expandNode(params.data as nodeModel);
           //console.log(params);
+        },
+      });
+      menu.addItem({
+        icon: "iconLayoutBottom",
+        label: "在笔记中定位节点", //todo 国际化
+        click: async () => {
+          const tab = await openTab({
+            app: this.app,
+            doc: {
+              id: params.data.id,
+              action: ["cb-get-focus"],
+            },
+          });
+          //console.log(tab);
         },
       });
       menu.open({
