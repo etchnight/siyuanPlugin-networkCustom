@@ -3,7 +3,6 @@
 
 [思源笔记](https://b3log.org/siyuan/)插件，将父子关系和链接关系等显示在树状图中，使用[echarts](https://echarts.apache.org/zh/index.html)创建。
 
-> ❗❗❗ 为统一项目方法和类型，思源api相关方法和类型均在[siyuanPlugin-common](https://github.com/etchnight/siyuanPlugin-common)项目中。
 
 ### 使用方法
 
@@ -23,6 +22,7 @@
 #### 右键菜单
 - [x] 扩展节点
 - [x] 在笔记中定位节点（文档tab）
+- [x] 在浮动窗口查看节点
 - [ ] 删除节点
 
 #### 高级功能
@@ -33,3 +33,7 @@
 
 - [使用 vite + svelte 的思源笔记插件示例
 ](https://github.com/siyuan-note/plugin-sample-vite-svelte)
+
+### 开发相关
+- ❗❗❗ 为统一项目方法和类型，思源api相关方法和类型均在[siyuanPlugin-common](https://github.com/etchnight/siyuanPlugin-common)项目中。
+- ❗为便于开发，对`echarts/types/dist/shared`文件做了修改，将部分类型改为导出
