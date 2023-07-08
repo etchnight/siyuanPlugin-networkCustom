@@ -40,11 +40,32 @@ export class echartsGraph {
   private app: App;
   private plugin: Plugin;
   private debug: boolean;
+  private rootBlock: Block;
   constructor(i18n: i18nType, app: App, plugin: Plugin) {
     this.i18n = i18n;
     this.app = app;
     this.plugin = plugin;
-    this.debug = false;
+    this.debug = true;
+    this.rootBlock = {
+      id: "root",
+      root_id: "root",
+      hash: "",
+      box: "",
+      path: "",
+      hpath: "",
+      name: "root",
+      alias: "",
+      memo: "",
+      tag: "",
+      content: "",
+      markdown: "",
+      length: 0,
+      type: "other",
+      subtype: "other",
+      sort: 0,
+      created: "",
+      updated: "",
+    };
   }
   public async resizeGraph(widthNum: number, heightNum: number) {
     if (!this.graph) {
@@ -419,9 +440,11 @@ export class echartsGraph {
     let node: nodeModel = this.buildNodeWithoutParent(block);
     const parentBlock = await getParentBlock(block);
     if (parentBlock) {
+      node.parentBlock = parentBlock;
       node.parent_id = parentBlock.id;
     } else {
       node.parent_id = "root";
+      node.parentBlock = this.rootBlock;
     }
     return node;
   }
@@ -512,8 +535,8 @@ export class echartsGraph {
       return;
     } else {
       //*添加parent
-      const parentBlock = await getParentBlock(node);
-      let parentNode = await this.buildNode(parentBlock);
+      //const parentBlock = await getParentBlock(node);
+      let parentNode = await this.buildNode(node.parentBlock);
       parentNode.children.push(node);
       await this.addNodeToTreeData(parentNode);
     }
@@ -695,6 +718,7 @@ export interface nodeModel extends TreeSeriesNodeItemOption {
   children: nodeModel[]; //?
   //?不可行，会无限clone parent: nodeModel;
   //value: [number, number];
+  parentBlock?: Block;
 }
 interface edgeModel extends GraphEdgeItemOption {
   id: string;
