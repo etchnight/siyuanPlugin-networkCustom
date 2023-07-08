@@ -39,10 +39,12 @@ export class echartsGraph {
   public graphLinks: edgeModel[] = [];
   private app: App;
   private plugin: Plugin;
+  private debug: boolean;
   constructor(i18n: i18nType, app: App, plugin: Plugin) {
     this.i18n = i18n;
     this.app = app;
     this.plugin = plugin;
+    this.debug = false;
   }
   public async resizeGraph(widthNum: number, heightNum: number) {
     if (!this.graph) {
@@ -414,6 +416,16 @@ export class echartsGraph {
    * @returns
    */
   private async buildNode(block: Block) {
+    let node: nodeModel = this.buildNodeWithoutParent(block);
+    const parentBlock = await getParentBlock(block);
+    if (parentBlock) {
+      node.parent_id = parentBlock.id;
+    } else {
+      node.parent_id = "root";
+    }
+    return node;
+  }
+  private buildNodeWithoutParent(block: Block) {
     let node: nodeModel;
     let labelName = this.buildNodeLabel(block);
     node = {
@@ -423,12 +435,6 @@ export class echartsGraph {
       labelName: labelName,
       //value: [0, 0],
     };
-    const parentBlock = await getParentBlock(block);
-    if (parentBlock) {
-      node.parent_id = parentBlock.id;
-    } else {
-      node.parent_id = "root";
-    }
     return node;
   }
   private buildNodeLabel(block: Block): string {
@@ -627,20 +633,31 @@ export class echartsGraph {
       return itemLayouts[index];
     }
   }
+  private devConsole(callback, ...args) {
+    if (!this.debug) {
+      return;
+    }
+    callback(...args);
+  }
   public async expandNode(node: nodeModel) {
-    //console.time("expandNode");
+    this.devConsole(console.time, "expandNode");
     let originBlock = await getBlockById(node.id);
-    //console.timeLog("expandNode", "originBlock");
+    this.devConsole(console.timeLog, "expandNode", "originBlock");
     if (!originBlock) {
       return;
     }
     //*children
     const childrenBlocks = await getChildrenBlocks(node.id);
+    this.devConsole(console.timeLog, "expandNode", "children-blocks");
     for (let child of childrenBlocks) {
-      let node = await this.buildNode(child);
+      let node = this.buildNodeWithoutParent(child);
+      node.parent_id = originBlock.id;
       await this.addNodeToTreeDataAndRefresh(node);
+      this.devConsole(console.count);
+      this.devConsole(console.timeLog, "expandNode", "children-add");
     }
-    //console.timeLog("expandNode", "children");
+    this.devConsole(console.countReset);
+    this.devConsole(console.timeLog, "expandNode", "children");
     //*refBlocks
     const refBlocks = await getRefBlocks(node.id);
     let refNodes: nodeModel[] = [];
@@ -650,7 +667,7 @@ export class echartsGraph {
       refNodes.push(node);
     }
     this.addNodesAndEdges(refNodes, node, "ref");
-    //console.timeLog("expandNode", "refBlocks");
+    this.devConsole(console.timeLog, "expandNode", "refBlocks");
     //*defBlocks
     const defBlocks = await getDefBlocks(node.id);
     let defNodes: nodeModel[] = [];
@@ -660,12 +677,11 @@ export class echartsGraph {
       defNodes.push(node);
     }
     this.addNodesAndEdges(defNodes, node, "def");
-    //console.timeLog("expandNode", "defBlocks");
+    this.devConsole(console.timeLog, "expandNode", "defBlocks");
     this.reComputePosition();
-    //console.timeLog("expandNode", "reComputePosition");
+    this.devConsole(console.timeLog, "expandNode", "reComputePosition");
     this.refreshGraph(1);
-    //console.timeLog("expandNode", "refreshGraph");
-    //console.timeEnd("expandNode");
+    this.devConsole(console.timeEnd, "expandNode");
   }
 }
 
