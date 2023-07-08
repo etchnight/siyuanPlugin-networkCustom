@@ -1,5 +1,14 @@
-import * as sy from "../../siyuanPlugin-common/siyuan-api";
-import * as syTypes from "../../siyuanPlugin-common/types/siyuan-api";
+import {
+  getBlockById,
+  getChildrenBlocks,
+  getDefBlocks,
+  getFocusNodeId,
+  getParentBlock,
+  getRefBlocks,
+  pushErrMsg,
+  typeAbbrMap,
+} from "../../siyuanPlugin-common/siyuan-api";
+import { Block, BlockId } from "../../siyuanPlugin-common/types/siyuan-api";
 import { Plugin, Menu, openTab, App } from "siyuan";
 //*↓↓↓↓↓eacharts↓↓↓↓↓
 import * as echarts from "echarts/core";
@@ -186,12 +195,12 @@ export class echartsGraph {
     });
     //graph.on("mouseover", onMouseOver);
     //---清空并添加初始节点---
-    const startNodeId = sy.getFocusNodeId();
+    const startNodeId = getFocusNodeId();
     if (!startNodeId) {
-      sy.pushErrMsg(this.i18n.prefix + this.i18n.startNodeError);
+      pushErrMsg(this.i18n.prefix + this.i18n.startNodeError);
       return;
     }
-    const startBlock = await sy.getBlockById(startNodeId);
+    const startBlock = await getBlockById(startNodeId);
     const startNodeModel = await this.buildNode(startBlock);
     let rootNode: nodeModel = structuredClone(startNodeModel);
     for (let key of Object.keys(rootNode)) {
@@ -404,7 +413,7 @@ export class echartsGraph {
    * @param block
    * @returns
    */
-  private async buildNode(block: syTypes.Block) {
+  private async buildNode(block: Block) {
     let node: nodeModel;
     let labelName = this.buildNodeLabel(block);
     node = {
@@ -414,7 +423,7 @@ export class echartsGraph {
       labelName: labelName,
       //value: [0, 0],
     };
-    const parentBlock = await sy.getParentBlock(block);
+    const parentBlock = await getParentBlock(block);
     if (parentBlock) {
       node.parent_id = parentBlock.id;
     } else {
@@ -422,7 +431,7 @@ export class echartsGraph {
     }
     return node;
   }
-  private buildNodeLabel(block: syTypes.Block): string {
+  private buildNodeLabel(block: Block): string {
     if (block.name) {
       return block.name;
     }
@@ -439,7 +448,7 @@ export class echartsGraph {
         }
         return label;
       default:
-        return sy.typeAbbrMap[block.type];
+        return typeAbbrMap[block.type];
     }
   }
   private buildGraphNode(node: nodeModel) {
@@ -497,7 +506,7 @@ export class echartsGraph {
       return;
     } else {
       //*添加parent
-      const parentBlock = await sy.getParentBlock(node);
+      const parentBlock = await getParentBlock(node);
       let parentNode = await this.buildNode(parentBlock);
       parentNode.children.push(node);
       await this.addNodeToTreeData(parentNode);
@@ -582,7 +591,7 @@ export class echartsGraph {
    */
   private getTreeNodePositionParams() {
     let info = this.getDataInfo(0);
-    let idList = info._idList as syTypes.BlockId[];
+    let idList = info._idList as BlockId[];
     let itemLayouts = info._itemLayouts as {
       x: number;
       y: number;
@@ -591,7 +600,7 @@ export class echartsGraph {
   }
   private getTreeNodePosition(
     node: graphNodeModel,
-    idList: syTypes.BlockId[],
+    idList: BlockId[],
     itemLayouts: { x: number; y: number }[]
   ): {
     x: number;
@@ -620,20 +629,20 @@ export class echartsGraph {
   }
   public async expandNode(node: nodeModel) {
     //console.time("expandNode");
-    let originBlock = await sy.getBlockById(node.id);
+    let originBlock = await getBlockById(node.id);
     //console.timeLog("expandNode", "originBlock");
     if (!originBlock) {
       return;
     }
     //*children
-    const childrenBlocks = await sy.getChildrenBlocks(node.id);
+    const childrenBlocks = await getChildrenBlocks(node.id);
     for (let child of childrenBlocks) {
       let node = await this.buildNode(child);
       await this.addNodeToTreeDataAndRefresh(node);
     }
     //console.timeLog("expandNode", "children");
     //*refBlocks
-    const refBlocks = await sy.getRefBlocks(node.id);
+    const refBlocks = await getRefBlocks(node.id);
     let refNodes: nodeModel[] = [];
     for (let child of refBlocks) {
       let node = await this.buildNode(child);
@@ -643,7 +652,7 @@ export class echartsGraph {
     this.addNodesAndEdges(refNodes, node, "ref");
     //console.timeLog("expandNode", "refBlocks");
     //*defBlocks
-    const defBlocks = await sy.getDefBlocks(node.id);
+    const defBlocks = await getDefBlocks(node.id);
     let defNodes: nodeModel[] = [];
     for (let child of defBlocks) {
       let node = await this.buildNode(child);
@@ -661,11 +670,11 @@ export class echartsGraph {
 }
 
 type edgeType = "parent" | "child" | "ref" | "def";
-export interface nodeModel extends syTypes.Block {}
+export interface nodeModel extends Block {}
 export interface nodeModel extends TreeSeriesNodeItemOption {
   labelName: string;
-  id: syTypes.BlockId;
-  parent_id?: syTypes.BlockId; //?会改变
+  id: BlockId;
+  parent_id?: BlockId; //?会改变
   name: string; //?会改变
   children: nodeModel[]; //?
   //?不可行，会无限clone parent: nodeModel;
@@ -675,11 +684,11 @@ interface edgeModel extends GraphEdgeItemOption {
   id: string;
   labelName: string;
 }
-interface graphNodeModel extends syTypes.Block {}
+interface graphNodeModel extends Block {}
 interface graphNodeModel extends GraphNodeItemOption {
   labelName: string;
-  id: syTypes.BlockId;
-  parent_id?: syTypes.BlockId; //?会改变
+  id: BlockId;
+  parent_id?: BlockId; //?会改变
   name: string; //?会改变
   value: [number, number];
 }
