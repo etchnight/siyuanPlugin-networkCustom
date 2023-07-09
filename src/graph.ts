@@ -45,7 +45,7 @@ export class echartsGraph {
     this.i18n = i18n;
     this.app = app;
     this.plugin = plugin;
-    this.debug = true;
+    this.debug = false;
     this.rootBlock = {
       id: "root",
       root_id: "root",
@@ -79,24 +79,13 @@ export class echartsGraph {
         duration: 200,
       },
     });
-    /*
-    graphOption.xAxis[0].max =
-      widthNum - graphOption.grid[0].left - graphOption.grid[0].right;
-    graphOption.yAxis[0].max =
-      heightNum - graphOption.grid[0].top - graphOption.grid[0].bottom;
-    graph.setOption(graphOption);*/
-    this.reComputePosition();
-    this.refreshGraph(1);
+    const option = this.graph.getOption() as ECOption;
+    //@ts-ignore
+    if (option && option.series.length > 0) {
+      this.reComputePosition();
+    }
   }
-
-  /**
-   * 初始化图表
-   * @param container
-   * @param widthNum
-   * @param heightNum
-   * @returns
-   */
-  public async reInitGraph(
+  public initGraph(
     container: HTMLElement,
     widthNum: number,
     heightNum: number
@@ -108,6 +97,26 @@ export class echartsGraph {
       });
       //console.log("init", widthNum, heightNum);
     }
+    //---设置动作---
+    this.graph.on("contextmenu", (params) => {
+      this.onContextMenu(params as ECElementEventParams);
+    });
+    this.graph.on("click", (params) => {
+      this.onNodeClick(params as ECElementEventParams);
+    });
+    this.graph.on("treeroam", () => {
+      this.reComputePosition();
+    });
+    //graph.on("mouseover", onMouseOver);
+  }
+  /**
+   * 初始化图表
+   * @param container
+   * @param widthNum
+   * @param heightNum
+   * @returns
+   */
+  public async reInitGraph(widthNum: number, heightNum: number) {
     const grid = {
       left: 50,
       width: widthNum - 50 - 50, //-left-right
@@ -202,21 +211,11 @@ export class echartsGraph {
       graphOption.series[0][key] = grid[key];
       //graphOption.series[1][key] = grid[key];
     }
+    graphOption.series[0].width = graphOption.series[0].width - 50;
     //graphOption = forDevInit(graphOption); //调试用
     this.graph.setOption(graphOption);
     this.graphData = []; //清空数据
     this.graphLinks = [];
-    //---设置动作---
-    this.graph.on("contextmenu", (params) => {
-      this.onContextMenu(params as ECElementEventParams);
-    });
-    this.graph.on("click", (params) => {
-      this.onNodeClick(params as ECElementEventParams);
-    });
-    this.graph.on("treeroam", () => {
-      this.reComputePosition();
-    });
-    //graph.on("mouseover", onMouseOver);
     //---清空并添加初始节点---
     const startNodeId = getFocusNodeId();
     if (!startNodeId) {
@@ -359,25 +358,12 @@ export class echartsGraph {
     ) as unknown as [number, number];
     return node;
   }
-  /**
-   * @deprecated 目前是在配置中设置的高亮方式
-   * @param params
-   */
-  private onMouseOver(params: ECElementEventParams) {
-    console.log(params);
-    /*
-    graph.dispatchAction({
-      type: "highlight",
-      seriesId: "blockTree",
-      name: [params.data.id],
-    });*/
-  }
   private onContextMenu(params: ECElementEventParams) {
     if (!this.graph) {
       return;
     }
-    const menu = new Menu("graphMenu", () => {
-      //console.log("菜单");
+    const menu = new Menu("plugin-networkCustom-Menu", () => {
+      console.log("菜单");
     });
     menu.addItem({
       icon: "",
@@ -399,10 +385,26 @@ export class echartsGraph {
         });
       },
     });
+    /*menu.addItem({
+      icon: "iconLayout",
+      label: "在浮动窗口查看节点", //todo 国际化
+      click: () => {
+        openTab({
+          app: this.app,
+          doc: {
+            id: params.data.id,
+            action: ["cb-get-focus"],
+          },
+          position: "bottom",
+        });
+      },
+    });*/
+    //todo 有时候打不开
     menu.addItem({
       icon: "iconLayout",
       label: "在浮动窗口查看节点",
       click: () => {
+        //console.log(this.plugin);
         this.plugin.addFloatLayer({
           ids: [params.data.id],
           //defIds: ["20230415111858-vgohvf3", "20200813131152-0wk5akh"],
@@ -416,7 +418,7 @@ export class echartsGraph {
       x: event.clientX + 5,
       y: event.clientY + 5,
     });
-    return menu;
+    return;
   }
   private onNodeClick(params: ECElementEventParams) {
     switch (params.componentSubType) {
@@ -663,6 +665,7 @@ export class echartsGraph {
     callback(...args);
   }
   public async expandNode(node: nodeModel) {
+    //this.graph.showLoading();//?有概率导致右键菜单失效
     this.devConsole(console.time, "expandNode");
     let originBlock = await getBlockById(node.id);
     this.devConsole(console.timeLog, "expandNode", "originBlock");
@@ -676,10 +679,7 @@ export class echartsGraph {
       let node = this.buildNodeWithoutParent(child);
       node.parent_id = originBlock.id;
       await this.addNodeToTreeDataAndRefresh(node);
-      this.devConsole(console.count);
-      this.devConsole(console.timeLog, "expandNode", "children-add");
     }
-    this.devConsole(console.countReset);
     this.devConsole(console.timeLog, "expandNode", "children");
     //*refBlocks
     const refBlocks = await getRefBlocks(node.id);
@@ -702,9 +702,8 @@ export class echartsGraph {
     this.addNodesAndEdges(defNodes, node, "def");
     this.devConsole(console.timeLog, "expandNode", "defBlocks");
     this.reComputePosition();
-    this.devConsole(console.timeLog, "expandNode", "reComputePosition");
-    this.refreshGraph(1);
     this.devConsole(console.timeEnd, "expandNode");
+    //this.graph.hideLoading();
   }
 }
 

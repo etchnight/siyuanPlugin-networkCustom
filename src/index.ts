@@ -46,9 +46,9 @@ export default class networkCustom extends Plugin {
           </div>
       </div>`;
         //console.log(window.customGraph.i18n.prefix,"init");
-        lastTabWidth = document.getElementById(
-          "container_networkCustom"
-        ).offsetWidth;
+        const container = document.getElementById("container_networkCustom");
+        lastTabWidth = container.offsetWidth;
+        eGraph.initGraph(container, 500, 500);
       },
       update() {
         lastTabWidth = document.getElementById(
@@ -71,7 +71,8 @@ export default class networkCustom extends Plugin {
         } else {
           if (lastTabWidth == 0) {
             //*重绘
-            await eGraph.reInitGraph(container, widthNum, heightNum);
+            eGraph.resizeGraph(widthNum, heightNum);
+            await eGraph.reInitGraph(widthNum, heightNum);
           } else {
             //*改变大小
             eGraph.resizeGraph(widthNum, heightNum);
