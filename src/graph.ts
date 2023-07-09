@@ -8,7 +8,11 @@ import {
   pushErrMsg,
   typeAbbrMap,
 } from "../../siyuanPlugin-common/siyuan-api";
-import { Block, BlockId } from "../../siyuanPlugin-common/types/siyuan-api";
+import {
+  Block,
+  BlockId,
+  Window_siyuan,
+} from "../../siyuanPlugin-common/types/siyuan-api";
 import { Plugin, Menu, openTab, App } from "siyuan";
 //*↓↓↓↓↓eacharts↓↓↓↓↓
 import * as echarts from "echarts/core";
@@ -363,7 +367,7 @@ export class echartsGraph {
       return;
     }
     const menu = new Menu("plugin-networkCustom-Menu", () => {
-      console.log("菜单");
+      //console.log("菜单");
     });
     menu.addItem({
       icon: "",
@@ -385,35 +389,35 @@ export class echartsGraph {
         });
       },
     });
-    /*menu.addItem({
-      icon: "iconLayout",
-      label: "在浮动窗口查看节点", //todo 国际化
-      click: () => {
-        openTab({
-          app: this.app,
-          doc: {
-            id: params.data.id,
-            action: ["cb-get-focus"],
-          },
-          position: "bottom",
-        });
-      },
-    });*/
-    //todo 有时候打不开
+    const event = params.event.event as MouseEvent;
+    //*鼠标指针一定要在新panel里，不然会立刻关闭窗口
+    let panelX = event.clientX - 600; //768
+    let panelY = event.clientY - 150; //min:288
+    if (panelY + 288 > window.innerHeight) {
+      panelY = window.innerHeight - 310;
+    }
     menu.addItem({
       icon: "iconLayout",
       label: "在浮动窗口查看节点",
-      click: () => {
-        //console.log(this.plugin);
+      click: async () => {
         this.plugin.addFloatLayer({
           ids: [params.data.id],
-          //defIds: ["20230415111858-vgohvf3", "20200813131152-0wk5akh"],
-          x: window.innerWidth - 768 - 120,
-          y: 32,
+          x: panelX,
+          y: panelY,
         });
+        //*查找新panel并钉住
+        const panels = window.siyuan.blockPanels;
+        const currentPanel = panels.find((value) => {
+          if (value.nodeIds.length == 0) {
+            return false;
+          }
+          return value.nodeIds[0] == params.data.id;
+        });
+        let ele = currentPanel.element;
+        ele = ele.querySelector("[data-type=pin]");
+        ele.click();
       },
     });
-    const event = params.event.event as MouseEvent;
     menu.open({
       x: event.clientX + 5,
       y: event.clientY + 5,
@@ -664,6 +668,11 @@ export class echartsGraph {
     }
     callback(...args);
   }
+  private async sleep(time: number) {
+    return new Promise((res) => {
+      setTimeout(res, time);
+    });
+  }
   public async expandNode(node: nodeModel) {
     //this.graph.showLoading();//?有概率导致右键菜单失效
     this.devConsole(console.time, "expandNode");
@@ -739,3 +748,8 @@ export type i18nType = {
   prefix: string;
   startNodeError: string;
 };
+declare global {
+  interface Window {
+    siyuan: Window_siyuan;
+  }
+}
