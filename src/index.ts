@@ -64,7 +64,6 @@ export default class networkCustom extends Plugin {
         }
         if (widthNum == 0 || !widthNum) {
           //*清除画布
-          //console.log("clear");
           if (eGraph.graph) {
             eGraph.graph.clear();
           }
@@ -72,10 +71,13 @@ export default class networkCustom extends Plugin {
           if (lastTabWidth == 0) {
             //*重绘
             eGraph.resizeGraph(widthNum, heightNum);
-            await eGraph.reInitGraph(widthNum, heightNum);
+            eGraph.reInitGraph(widthNum, heightNum);
+            await eGraph.reInitData();
           } else {
             //*改变大小
             eGraph.resizeGraph(widthNum, heightNum);
+            eGraph.reInitGraph(widthNum, heightNum);
+            eGraph.reComputePosition();
           }
         }
         lastTabWidth = widthNum || 0;

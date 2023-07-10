@@ -11,6 +11,7 @@ import {
 import {
   Block,
   BlockId,
+  BlockType,
   Window_siyuan,
 } from "../../siyuanPlugin-common/types/siyuan-api";
 import { Plugin, Menu, openTab, App } from "siyuan";
@@ -38,44 +39,24 @@ type ECOption = echarts.ComposeOption<
 export class echartsGraph {
   private i18n: i18nType;
   public graph: echarts.ECharts;
-  public treeData: nodeModel[] = [];
-  public graphData: graphNodeModel[] = [];
+  public treeData: nodeModelTree[] = [];
+  public graphData: nodeModelGraph[] = [];
   public graphLinks: edgeModel[] = [];
+  public tagTreeData: nodeModelTree[] = [];
   private app: App;
   private plugin: Plugin;
   private debug: boolean;
-  private rootBlock: Block;
+  //private rootBlock: Block;
   constructor(i18n: i18nType, app: App, plugin: Plugin) {
     this.i18n = i18n;
     this.app = app;
     this.plugin = plugin;
     this.debug = false;
-    this.rootBlock = {
-      id: "root",
-      root_id: "root",
-      hash: "",
-      box: "",
-      path: "",
-      hpath: "",
-      name: "root",
-      alias: "",
-      memo: "",
-      tag: "",
-      content: "",
-      markdown: "",
-      length: 0,
-      type: "other",
-      subtype: "other",
-      sort: 0,
-      created: "",
-      updated: "",
-    };
   }
   public async resizeGraph(widthNum: number, heightNum: number) {
     if (!this.graph) {
       return;
     }
-    //let graphOption = graph.getOption();
     this.graph.resize({
       width: widthNum,
       height: heightNum,
@@ -83,11 +64,6 @@ export class echartsGraph {
         duration: 200,
       },
     });
-    const option = this.graph.getOption() as ECOption;
-    //@ts-ignore
-    if (option && option.series.length > 0) {
-      this.reComputePosition();
-    }
   }
   public initGraph(
     container: HTMLElement,
@@ -108,8 +84,8 @@ export class echartsGraph {
     this.graph.on("click", (params) => {
       this.onNodeClick(params as ECElementEventParams);
     });
-    this.graph.on("treeroam", () => {
-      this.reComputePosition();
+    this.graph.on("treeroam", (params) => {
+      this.onTreeroam(params as ECElementEventParams);
     });
     //graph.on("mouseover", onMouseOver);
   }
@@ -120,14 +96,37 @@ export class echartsGraph {
    * @param heightNum
    * @returns
    */
-  public async reInitGraph(widthNum: number, heightNum: number) {
+  public reInitGraph(widthNum: number, heightNum: number) {
     const grid = {
       left: 50,
       width: widthNum - 50 - 50, //-left-right
       top: 30,
       height: heightNum - 30 - 30, //-top-bottom
     };
-    let graphOption: ECOption = {
+    const blockTreeSeries = this.buildTreeOpt("blockTree", grid);
+    const tagTreeSeries = this.buildTreeOpt("tagTree", grid);
+    const graphSeries: GraphSeriesOption = {
+      type: "graph",
+      id: "blockGraph",
+      data: this.graphData,
+      links: this.graphLinks,
+      layout: "none",
+      coordinateSystem: "cartesian2d",
+      xAxisIndex: 0,
+      yAxisIndex: 0,
+      z: 5,
+      label: {
+        show: false,
+        position: "bottom",
+      },
+      edgeSymbol: ["none", "arrow"],
+      itemStyle: { opacity: 0 },
+      //lineStyle: {
+      //  width: 15,
+      //},
+      //edgeSymbolSize: 50,
+    };
+    const graphOption: ECOption = {
       grid: [
         {
           left: grid.left,
@@ -153,73 +152,65 @@ export class echartsGraph {
           show: false,
         },
       ],
-      series: [
-        {
-          type: "tree",
-          id: "blockTree",
-          data: this.treeData,
-          z: 10,
-          initialTreeDepth: -1,
-          label: {
-            show: true,
-            color: "#F0FFFF",
-            position: "top",
-            textBorderColor: "#111f2c",
-            textBorderWidth: 2,
-          },
-          roam: true,
-          emphasis: {
-            //高亮显示所有内容
-            disabled: false,
-            label: {
-              formatter: (params: { data }) => {
-                return params.data.content;
-              },
-              backgroundColor: "#000000",
-              padding: 4,
-              width: 150,
-              overflow: "break",
-              lineHeight: 15,
-            },
-          },
-          //lineStyle: {
-          //  width: 15,
-          //},
-          //symbolSize: 50,
-        },
-        {
-          type: "graph",
-          id: "blockGraph",
-          data: this.graphData,
-          links: this.graphLinks,
-          layout: "none",
-          coordinateSystem: "cartesian2d",
-          xAxisIndex: 0,
-          yAxisIndex: 0,
-          z: 5,
-          label: {
-            show: false,
-            position: "bottom",
-          },
-          edgeSymbol: ["none", "arrow"],
-          itemStyle: { opacity: 0 },
-          //lineStyle: {
-          //  width: 15,
-          //},
-          //edgeSymbolSize: 50,
-        },
-      ],
+      series: [blockTreeSeries, graphSeries, tagTreeSeries],
     };
-    //*统一树图和关系图尺寸grid
-    for (let key of Object.keys(grid)) {
-      graphOption.series[0][key] = grid[key];
-      //graphOption.series[1][key] = grid[key];
-    }
-    graphOption.series[0].width = graphOption.series[0].width - 50;
     //graphOption = forDevInit(graphOption); //调试用
     this.graph.setOption(graphOption);
+  }
+  private buildTreeOpt(
+    seriesId: seriesID,
+    grid: { left: number; width: number; top: number; height: number }
+  ): TreeSeriesOption {
+    const labelFormatter = (params: { data }) => {
+      return params.data.content;
+    };
+    const tagTreeSeriesWidth = 150;
+    let opt: TreeSeriesOption = {
+      type: "tree",
+      id: seriesId,
+      data: seriesId == "blockTree" ? this.treeData : this.tagTreeData,
+      z: 10,
+      initialTreeDepth: -1,
+      label: {
+        show: true,
+        color: "#F0FFFF",
+        position: "top",
+        textBorderColor: "#111f2c",
+        textBorderWidth: 2,
+      },
+      roam: seriesId == "blockTree" ? true : false,
+      emphasis: {
+        //高亮显示所有内容
+        disabled: seriesId == "blockTree" ? false : true,
+        label: {
+          formatter: seriesId == "blockTree" ? labelFormatter : undefined,
+          backgroundColor: "#000000",
+          padding: 4,
+          width: 150,
+          overflow: "break",
+          lineHeight: 15,
+        },
+      },
+      left:
+        seriesId == "blockTree"
+          ? grid.left
+          : grid.left + grid.width - tagTreeSeriesWidth + 30,
+      width:
+        seriesId == "blockTree"
+          ? grid.width - tagTreeSeriesWidth
+          : tagTreeSeriesWidth - 30,
+      top: grid.top,
+      height: grid.height,
+      zoom: 1,
+    };
+    //@ts-ignore
+    opt.center = [opt.width / 2, opt.height / 2];
+    return opt;
+  }
+  public async reInitData() {
     this.graphData = []; //清空数据
     this.graphLinks = [];
+    this.tagTreeData = [];
     //---清空并添加初始节点---
     const startNodeId = getFocusNodeId();
     if (!startNodeId) {
@@ -228,20 +219,31 @@ export class echartsGraph {
     }
     const startBlock = await getBlockById(startNodeId);
     const startNodeModel = await this.buildNode(startBlock);
-    let rootNode: nodeModel = structuredClone(startNodeModel);
-    for (let key of Object.keys(rootNode)) {
-      rootNode[key] = "";
-    }
-    rootNode.children = [];
-    rootNode.id = "root";
-    this.treeData = [rootNode];
-    await this.addNodeToTreeDataAndRefresh(startNodeModel);
+    this.treeData = [this.rootNode("tree")];
+    this.tagTreeData = [this.rootNode("tagTree")];
+    await this.addNodeToTreeDataAndRefresh(this.treeData, startNodeModel);
     //addBorderGraphData();
     await this.expandNode(startNodeModel);
   }
-
+  private rootNode(series: "tree" | "tagTree") {
+    const rootNode: nodeModelTree = {
+      id: series == "tree" ? "root" : "rootTag",
+      labelName: series == "tree" ? "root" : "rootTag",
+      children: [],
+      type: "other",
+      name: series == "tree" ? "root" : "rootTag",
+      path: "",
+      box: "",
+      tag: "",
+      content: "",
+      value: [0, 0],
+    };
+    return rootNode;
+  }
   private forDevInit(graphOption: ECOption) {
-    graphOption.series[0].label.formatter = (params: { data }) => {
+    graphOption.series[0].label.formatter = labelFormater;
+    graphOption.series[2].label.formatter = labelFormater;
+    function labelFormater(params: { data }) {
       let labelName = params.data.labelName;
       let { idList, itemLayouts } = this.getTreeNodePositionParams();
       let { x, y } = this.getTreeNodePosition(params.data, idList, itemLayouts);
@@ -249,7 +251,7 @@ export class echartsGraph {
       y = Math.round(y);
       //let pixel = graph.convertToPixel({ seriesIndex: 0 }, [x, y]);
       return `${labelName}:${x},${y}`;
-    };
+    }
     graphOption.series[1].label.formatter = (params: { data }) => {
       let x = Math.round(params.data.value[0]);
       let y = Math.round(params.data.value[1]);
@@ -281,16 +283,21 @@ export class echartsGraph {
   }
   /**
    * 注意，只刷新数据，其他设置无法改变
-   * @param index 0树状图，1关系图，2全部
+   * @param seriesId
    */
-  private refreshGraph(index: 0 | 1 | 2) {
+  private refreshGraph(seriesIds: seriesID[]) {
     let option = this.graph.getOption();
-    if (index == 0 || index == 2) {
-      option.series[0].data = this.treeData; //todo 更稳妥的方式是使用Id检索
-    }
-    if (index == 1 || index == 2) {
-      option.series[1].data = this.graphData;
-      option.series[1].links = this.graphLinks;
+    for (let seriesId of seriesIds) {
+      if (seriesId == "blockTree") {
+        option.series[0].data = this.treeData;
+      }
+      if (seriesId == "blockGraph") {
+        option.series[1].data = this.graphData;
+        option.series[1].links = this.graphLinks;
+      }
+      if (seriesId == "tagTree") {
+        option.series[2].data = this.tagTreeData;
+      }
     }
     this.graph.setOption(option);
   }
@@ -309,26 +316,27 @@ export class echartsGraph {
   /**
    * 重算关系图位置
    */
-  private reComputePosition() {
-    let { idList, itemLayouts } = this.getTreeNodePositionParams();
-    let option = this.graph.getOption();
+  public reComputePosition() {
+    let [idList0, itemLayouts0] = this.getTreeNodePositionParams("blockTree");
+    let [idList2, itemLayouts2] = this.getTreeNodePositionParams("tagTree");
+    let option = this.graph.getOption() as ECOption;
     for (let node of this.graphData) {
       node = this.treePosition2GraphValue(
         node,
-        idList,
-        itemLayouts,
-        option.grid[0].left,
-        option.grid[0].top
+        node.type == "tag" ? idList2 : idList0,
+        node.type == "tag" ? itemLayouts2 : itemLayouts0,
+        node.type == "tag" ? option.series[2].left : option.series[0].left,
+        node.type == "tag" ? option.series[2].top : option.series[0].top
       );
     }
-    this.refreshGraph(1);
+    this.refreshGraph(["blockGraph"]);
   }
   /**
    * todo 集中获取treePosition2GraphValue所需参数
    * @returns
    */
-  private treePosition2GraphValueParams() {
-    const { idList, itemLayouts } = this.getTreeNodePositionParams();
+  private treePosition2GraphValueParams(treeId: seriesID) {
+    const [idList, itemLayouts] = this.getTreeNodePositionParams(treeId);
     const option = this.graph.getOption();
     return {
       idList: idList,
@@ -337,23 +345,21 @@ export class echartsGraph {
       top: option.grid[0].top,
     };
   }
+  /**
+   *
+   * @param left realPosition[0] += left * tree.coordinateSystem._zoom;
+   * @param top  realPosition[1] += top * tree.coordinateSystem._zoom;
+   */
   private treePosition2GraphValue(
-    node: graphNodeModel,
+    node: nodeModelGraph,
     idList: string[],
     itemLayouts: { x: number; y: number }[],
     left: number,
-    top: number,
-    index?: number
+    top: number
   ) {
-    const tree = index ? this.getSeries(2) : this.getSeries(0); //todo 标签预留
+    const tree = node.type == "tag" ? this.getSeries(2) : this.getSeries(0);
     let { x, y } = this.getTreeNodePosition(node, idList, itemLayouts);
-    //node.value = [x, y];
-    //node.x = x;
-    //node.y = y;
-    let realPosition = tree.coordinateSystem.dataToPoint(
-      [x, y]
-      //tree.coordinateSystem._zoom
-    );
+    let realPosition = tree.coordinateSystem.dataToPoint([x, y]);
     realPosition[0] += left * tree.coordinateSystem._zoom;
     realPosition[1] += top * tree.coordinateSystem._zoom;
     node.value = this.graph.convertFromPixel(
@@ -362,8 +368,12 @@ export class echartsGraph {
     ) as unknown as [number, number];
     return node;
   }
+
   private onContextMenu(params: ECElementEventParams) {
     if (!this.graph) {
+      return;
+    }
+    if ((params.seriesId as seriesID) != "blockTree") {
       return;
     }
     const menu = new Menu("plugin-networkCustom-Menu", () => {
@@ -373,7 +383,7 @@ export class echartsGraph {
       icon: "",
       label: "展开节点",
       click: () => {
-        this.expandNode(params.data as nodeModel);
+        this.expandNode(params.data as nodeModelTree);
       },
     });
     menu.addItem({
@@ -425,17 +435,50 @@ export class echartsGraph {
     return;
   }
   private onNodeClick(params: ECElementEventParams) {
-    switch (params.componentSubType) {
-      case "tree":
+    switch (params.seriesId as seriesID) {
+      case "blockTree":
         this.reComputePosition();
         //*记忆节点折叠情况
         let treeNode = this.findTreeDataById(this.treeData, params.data.id);
         treeNode.collapsed = params.collapsed;
-        this.refreshGraph(2);
+        this.refreshGraph(["blockGraph", "blockTree"]);
         break;
-      case "graph":
+      case "tagTree":
+        this.reComputePosition();
+        //*记忆节点折叠情况
+        let tagTreeNode = this.findTreeDataById(
+          this.tagTreeData,
+          params.data.id
+        );
+        tagTreeNode.collapsed = params.collapsed;
+        this.refreshGraph(["blockGraph", "tagTree"]);
+        break;
+      case "blockGraph":
         break;
     }
+  }
+  private onTreeroam(params: ECElementEventParams) {
+    /*//?不生效
+    this.graph.dispatchAction({
+      type: "treeroam",
+      seriesId: "tagTree",
+      zoom: params.zoom, // 单次缩放倍数
+      originX: params.originX,
+      originY: params.originY,
+      dx: params.dx,
+      dy: params.dy,
+    });*/
+
+    let option = this.graph.getOption() as ECOption;
+    if (params.dx || params.dy) {
+      option.series[2].center[0] -= params.dx;
+      option.series[2].center[1] -= params.dy;
+    }
+    if (params.zoom) {
+      option.series[2].zoom = option.series[2].zoom * params.zoom;
+    }
+    this.graph.setOption(option);
+    this.reComputePosition();
   }
   /**
    * 未构建children和parent
@@ -443,26 +486,24 @@ export class echartsGraph {
    * @returns
    */
   private async buildNode(block: Block) {
-    let node: nodeModel = this.buildNodeWithoutParent(block);
+    let node: nodeModelTree = this.buildNodeWithoutParent(block);
     const parentBlock = await getParentBlock(block);
-    if (parentBlock) {
-      node.parentBlock = parentBlock;
-      node.parent_id = parentBlock.id;
-    } else {
-      node.parent_id = "root";
-      node.parentBlock = this.rootBlock;
-    }
+    node.parent_id = parentBlock ? parentBlock.id : "root";
     return node;
   }
   private buildNodeWithoutParent(block: Block) {
-    let node: nodeModel;
     let labelName = this.buildNodeLabel(block);
-    node = {
-      ...block,
+    const node: nodeModelTree = {
+      id: block.id,
+      type: block.type,
       children: [],
       name: labelName,
       labelName: labelName,
-      //value: [0, 0],
+      path: block.path,
+      box: block.box,
+      tag: block.tag,
+      content: block.content,
+      value: [0, 0],
     };
     return node;
   }
@@ -486,17 +527,14 @@ export class echartsGraph {
         return typeAbbrMap[block.type];
     }
   }
-  private buildGraphNode(node: nodeModel) {
-    //!强制转换
-    let graphNode: graphNodeModel = structuredClone(
-      node
-    ) as unknown as graphNodeModel;
+  private buildGraphNode(node: nodeModelTree) {
+    let graphNode: nodeModelGraph = structuredClone(node);
     //graphNode.labelName = node.name;
     graphNode.name = node.id;
     graphNode.fixed = true;
     return graphNode;
   }
-  private buildEdge(source: graphNodeModel, target: graphNodeModel) {
+  private buildEdge(source: nodeModelGraph, target: nodeModelGraph) {
     let link: edgeModel = {
       id: `${source.name}-${target.name}`,
       source: source.name,
@@ -505,28 +543,60 @@ export class echartsGraph {
     };
     return link;
   }
+  private buildTagNodes(tagString: string): nodeModelTree[][] {
+    if (!tagString) {
+      return [];
+    }
+    const tags = tagString.split(" ");
+    let tagsSplited: nodeModelTree[][] = [];
+    for (let tag of tags) {
+      tag = tag.slice(1, -1);
+      let tagsGroup = tag.split("/");
+      let tagObjs: nodeModelTree[] = [];
+      for (let i = 0; i < tagsGroup.length; i++) {
+        tagObjs[i] = {
+          id: encodeURIComponent(tagsGroup[i]),
+          name: tagsGroup[i],
+          type: "tag",
+          labelName: tagsGroup[i],
+          path: "",
+          box: "",
+          children: [],
+          parent_id: i == 0 ? "rootTag" : encodeURIComponent(tagsGroup[i - 1]),
+          tag: "",
+          content: tagsGroup[i],
+          value: [0, 0],
+        };
+      }
+      tagsSplited.push(tagObjs);
+    }
+    return tagsSplited;
+  }
   /**
    * 向树添加节点时，会递归添加其父节点（如果原树中没有的话）
    * @param node
    * @returns
    */
-  private async addNodeToTreeData(node: nodeModel) {
+  private async addBlockToTreeData(
+    treeData: nodeModelTree[],
+    node: nodeModelTree
+  ) {
     //console.log("添加节点到treeData", node.labelName);
     //*node为box
     if (node.type == "box") {
       //&& node.id
       //console.log(treeData);
-      let added = this.treeData[0].children.find((child) => {
+      let added = treeData[0].children.find((child) => {
         return child.id == node.id;
       });
       if (!added) {
-        this.treeData[0].children.push(node);
+        treeData[0].children.push(node);
         return;
       }
       return;
     }
     //*查找parent
-    let parent = this.findTreeDataById(this.treeData, node.parent_id);
+    let parent = this.findTreeDataById(treeData, node.parent_id);
     if (parent) {
       //?不可行 node.parent = parent;
       //*添加node
@@ -541,22 +611,26 @@ export class echartsGraph {
       return;
     } else {
       //*添加parent
-      //const parentBlock = await getParentBlock(node);
-      let parentNode = await this.buildNode(node.parentBlock);
+      const parentBlock = await getParentBlock(node);
+      let parentNode = await this.buildNode(parentBlock);
       parentNode.children.push(node);
-      await this.addNodeToTreeData(parentNode);
+      await this.addBlockToTreeData(treeData, parentNode);
     }
   }
   /**
    * 除了addNodeToTreeData本身，在其他任何地方调用addNodeToTreeData，都必须立刻刷新数据
+   *@deprecated
    */
-  private async addNodeToTreeDataAndRefresh(node: nodeModel) {
-    await this.addNodeToTreeData(node);
-    this.refreshGraph(2);
+  private async addNodeToTreeDataAndRefresh(
+    treeData: nodeModelTree[],
+    node: nodeModelTree
+  ) {
+    await this.addBlockToTreeData(treeData, node);
+    this.refreshGraph(["blockGraph", "blockTree", "tagTree"]);
     return;
   }
-  private findTreeDataById(children: nodeModel[], id: string) {
-    let node: nodeModel;
+  private findTreeDataById(children: nodeModelTree[], id: string) {
+    let node: nodeModelTree;
     for (let child of children) {
       if (child.id == id) {
         node = child;
@@ -571,8 +645,8 @@ export class echartsGraph {
     return node;
   }
   private addNodesAndEdges(
-    otherNodes: nodeModel[],
-    origin: nodeModel,
+    otherNodes: nodeModelTree[],
+    origin: nodeModelTree,
     edgeType: edgeType
   ) {
     if (otherNodes.length == 0) {
@@ -600,19 +674,20 @@ export class echartsGraph {
       }
     }
   }
-  private addNodeToGraphData(node: graphNodeModel) {
+  private addNodeToGraphData(node: nodeModelGraph) {
     let nodeAdded = this.graphData.find((item) => {
       return item.id == node.id;
     });
     //*计算node位置
-    let { idList, itemLayouts } = this.getTreeNodePositionParams();
-    const option = this.graph.getOption();
+    const seriesId: seriesID = node.type == "tag" ? "tagTree" : "blockTree";
+    let [idList, itemLayouts] = this.getTreeNodePositionParams(seriesId);
+    const option = this.graph.getOption() as ECOption;
     node = this.treePosition2GraphValue(
       node,
       idList,
       itemLayouts,
-      option.grid[0].left,
-      option.grid[0].top
+      node.type == "tag" ? option.series[2].left : option.series[0].left,
+      node.type == "tag" ? option.series[2].top : option.series[0].top
     );
     if (!nodeAdded) {
       this.graphData.push(node);
@@ -624,17 +699,21 @@ export class echartsGraph {
    * 生成getTreeNodePosition的必备参数，防止反复获取
    * @returns idList,itemLayouts
    */
-  private getTreeNodePositionParams() {
-    let info = this.getDataInfo(0);
+  private getTreeNodePositionParams(
+    treeType: seriesID
+  ): [BlockId[], { x: number; y: number }[]] {
+    let info =
+      treeType == "blockTree" ? this.getDataInfo(0) : this.getDataInfo(2);
     let idList = info._idList as BlockId[];
     let itemLayouts = info._itemLayouts as {
       x: number;
       y: number;
     }[];
-    return { idList: idList, itemLayouts: itemLayouts };
+    return [idList, itemLayouts];
   }
+
   private getTreeNodePosition(
-    node: graphNodeModel,
+    node: nodeModelGraph,
     idList: BlockId[],
     itemLayouts: { x: number; y: number }[]
   ): {
@@ -645,7 +724,11 @@ export class echartsGraph {
       return item == node.id;
     });
     if (index >= itemLayouts.length || !itemLayouts[index]) {
-      let parent = this.findTreeDataById(this.treeData, node.parent_id);
+      //*如果在itemLayouts没有，则找parent的位置
+      let parent = this.findTreeDataById(
+        node.type == "tag" ? this.tagTreeData : this.treeData,
+        node.parent_id
+      );
       if (!parent) {
         console.error(
           `尝试在treeData中查找'${node.labelName}'(${node.id})的父节点(${node.parent_id})失败`
@@ -673,7 +756,7 @@ export class echartsGraph {
       setTimeout(res, time);
     });
   }
-  public async expandNode(node: nodeModel) {
+  public async expandNode(node: nodeModelTree) {
     //this.graph.showLoading();//?有概率导致右键菜单失效
     this.devConsole(console.time, "expandNode");
     let originBlock = await getBlockById(node.id);
@@ -687,29 +770,39 @@ export class echartsGraph {
     for (let child of childrenBlocks) {
       let node = this.buildNodeWithoutParent(child);
       node.parent_id = originBlock.id;
-      await this.addNodeToTreeDataAndRefresh(node);
+      await this.addNodeToTreeDataAndRefresh(this.treeData, node);
     }
     this.devConsole(console.timeLog, "expandNode", "children");
     //*refBlocks
     const refBlocks = await getRefBlocks(node.id);
-    let refNodes: nodeModel[] = [];
+    let refNodes: nodeModelTree[] = [];
     for (let child of refBlocks) {
       let node = await this.buildNode(child);
-      await this.addNodeToTreeDataAndRefresh(node);
+      await this.addNodeToTreeDataAndRefresh(this.treeData, node);
       refNodes.push(node);
     }
     this.addNodesAndEdges(refNodes, node, "ref");
     this.devConsole(console.timeLog, "expandNode", "refBlocks");
     //*defBlocks
     const defBlocks = await getDefBlocks(node.id);
-    let defNodes: nodeModel[] = [];
+    let defNodes: nodeModelTree[] = [];
     for (let child of defBlocks) {
       let node = await this.buildNode(child);
-      await this.addNodeToTreeDataAndRefresh(node);
+      await this.addNodeToTreeDataAndRefresh(this.treeData, node);
       defNodes.push(node);
     }
     this.addNodesAndEdges(defNodes, node, "def");
     this.devConsole(console.timeLog, "expandNode", "defBlocks");
+    //*tags
+    const tagNodes = this.buildTagNodes(node.tag);
+    let tagLeaves: nodeModelTree[] = [];
+    for (let group of tagNodes) {
+      for (let child of group) {
+        await this.addNodeToTreeDataAndRefresh(this.tagTreeData, child);
+      }
+      tagLeaves.push(group[group.length - 1]);
+    }
+    this.addNodesAndEdges(tagLeaves, node, "ref");
     this.reComputePosition();
     this.devConsole(console.timeEnd, "expandNode");
     //this.graph.hideLoading();
@@ -717,31 +810,42 @@ export class echartsGraph {
 }
 
 type edgeType = "parent" | "child" | "ref" | "def";
-export interface nodeModel extends Block {}
-export interface nodeModel extends TreeSeriesNodeItemOption {
+export interface nodeModelTree extends TreeSeriesNodeItemOption {
+  //v1.2.0 仅保留有用的属性
   labelName: string;
   id: BlockId;
-  parent_id?: BlockId; //?会改变
+  parent_id?: BlockId | "root" | "rootTag"; //?会改变
   name: string; //?会改变
-  children: nodeModel[]; //?
+  children: nodeModelTree[]; //?
+  type: BlockType | "tag";
+  path: string;
+  box: string;
+  tag: string;
+  content: string;
   //?不可行，会无限clone parent: nodeModel;
-  //value: [number, number];
-  parentBlock?: Block;
+  //以下为兼容nodeModelGraph
+  value: [number, number];
+  symbol?: any;
+  symbolSize?: any;
+  symbolRotate?: any;
+  symbolOffset?: any;
+  emphasis?: any;
+  //parentBlock?: Block;
 }
 interface edgeModel extends GraphEdgeItemOption {
   id: string;
   labelName: string;
 }
-interface graphNodeModel extends Block {}
-interface graphNodeModel extends GraphNodeItemOption {
+interface nodeModelGraph extends GraphNodeItemOption {
   labelName: string;
   id: BlockId;
   parent_id?: BlockId; //?会改变
   name: string; //?会改变
   value: [number, number];
+  type: BlockType | "tag";
 }
 export interface ECElementEventParams extends echarts.ECElementEvent {
-  data: nodeModel | edgeModel | graphNodeModel;
+  data: nodeModelTree | edgeModel | nodeModelGraph;
 }
 
 export type i18nType = {
@@ -753,3 +857,5 @@ declare global {
     siyuan: Window_siyuan;
   }
 }
+
+type seriesID = "blockTree" | "tagTree" | "blockGraph";

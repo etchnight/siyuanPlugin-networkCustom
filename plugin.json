@@ -2,7 +2,7 @@
   "name": "siyuanPligin-TreeAndGraph",
   "author": "dualwind",
   "url": "https://github.com/etchnight/siyuanPlugin-networkCustom",
-  "version": "1.1.1",
+  "version": "2.0.0",
   "minAppVersion": "2.9.0",
   "backends": ["windows", "linux", "darwin"],
   "frontends": ["desktop"],
@@ -11,7 +11,7 @@
     "zh_CN": "树状关系图"
   },
   "description": {
-    "en_US": "Display parent-child and link relationships in a treemap",
+    "en_US": "Display parent-child and link relationships in a tree",
     "zh_CN": "将父子关系和链接关系显示在树状图中"
   },
   "readme": {
