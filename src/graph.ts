@@ -468,7 +468,9 @@ export class echartsGraph {
       dx: params.dx,
       dy: params.dy,
     });*/
-
+    //*tagTree无分支则不缩放
+    if (this.tagTreeData[0].children.length) {
+    }
     let option = this.graph.getOption() as ECOption;
     if (params.dx || params.dy) {
       option.series[2].center[0] -= params.dx;
@@ -757,7 +759,15 @@ export class echartsGraph {
     });
   }
   public async expandNode(node: nodeModelTree) {
-    //this.graph.showLoading();//?有概率导致右键菜单失效
+    try {
+      await this.expandNodeTry(node);
+    } catch (e) {
+      pushErrMsg("TreeAndGraph插件扩展节点出错，请查看控制台");
+      this.graph.hideLoading();
+    }
+  }
+  private async expandNodeTry(node: nodeModelTree) {
+    this.graph.showLoading(); //?有概率导致右键菜单失效
     this.devConsole(console.time, "expandNode");
     let originBlock = await getBlockById(node.id);
     this.devConsole(console.timeLog, "expandNode", "originBlock");
@@ -805,7 +815,7 @@ export class echartsGraph {
     this.addNodesAndEdges(tagLeaves, node, "ref");
     this.reComputePosition();
     this.devConsole(console.timeEnd, "expandNode");
-    //this.graph.hideLoading();
+    this.graph.hideLoading();
   }
 }
 
