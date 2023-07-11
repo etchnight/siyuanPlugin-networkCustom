@@ -1,12 +1,12 @@
+[English](https://github.com/etchnight/siyuanPlugin-networkCustom/blob/main/README_en_US.md)
 
 ## 树状关系图
 
 [思源笔记](https://b3log.org/siyuan/)插件，将父子关系和链接关系等显示在树状图中，使用[echarts](https://echarts.apache.org/zh/index.html)创建。
 
-
 ### 使用方法
 
-默认在右侧新出现一个dock，点击即可，注意要先将光标置于某块中，该块会作为起始构建节点（每次新打开dock都会重新按照光标所在块作为起始节点绘制）。
+默认在右侧新出现一个 dock，点击即可，注意要先将光标置于某块中，该块会作为起始构建节点（每次新打开 dock 都会重新按照光标所在块作为起始节点绘制）。
 
 ### 功能和计划
 
@@ -21,20 +21,28 @@
 - [ ] 显示引用类型
 
 #### 右键菜单
+
 - [x] 扩展节点
-- [x] 在笔记中定位节点（文档tab）
+- [x] 在笔记中定位节点（文档 tab）
 - [x] 在浮动窗口查看节点
 - [ ] 删除节点
 
 #### 高级功能
+
 - [ ] 切换为力引导图
 - [ ] 自定义引用类型
+
+### 反馈
+
+有问题请在[github issues](https://github.com/etchnight/siyuanPlugin-networkCustom/issues)、[gitee issues](https://gitee.com/dualwind/siyuan-plugin-network-custom/issues)反馈。
 
 ### 感谢
 
 - [使用 vite + svelte 的思源笔记插件示例
-](https://github.com/siyuan-note/plugin-sample-vite-svelte)
+  ](https://github.com/siyuan-note/plugin-sample-vite-svelte)
+- [Apache ECharts](https://github.com/apache/echarts) A powerful, interactive charting and data visualization library for browser
 
 ### 开发相关
-- ❗❗❗ 为统一项目方法和类型，思源api相关方法和类型均在[siyuanPlugin-common](https://github.com/etchnight/siyuanPlugin-common)项目中。
-- ❗为便于开发，对`echarts/types/dist/shared`文件做了修改，将部分类型改为导出
+
+- ❗❗❗ 为统一项目方法和类型，思源 api 相关方法和类型均在[siyuanPlugin-common](https://github.com/etchnight/siyuanPlugin-common)项目中。
+- ❗ 为便于使用 TypeScript 开发，对`echarts/types/dist/shared`文件做了修改，将部分类型改为导出。
