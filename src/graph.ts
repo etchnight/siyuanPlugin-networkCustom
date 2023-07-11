@@ -30,6 +30,7 @@ import {
   TreeSeriesNodeItemOption,
   GraphEdgeItemOption,
   GraphNodeItemOption,
+  CallbackDataParams,
 } from "echarts/types/dist/shared";
 echarts.use([TreeChart, GraphChart, CanvasRenderer, GridComponent]);
 type ECOption = echarts.ComposeOption<
@@ -161,8 +162,31 @@ export class echartsGraph {
     seriesId: seriesID,
     grid: { left: number; width: number; top: number; height: number }
   ): TreeSeriesOption {
-    const labelFormatter = (params: { data }) => {
-      return params.data.content;
+    const emphasisLabelFormatter = (params: labelformatterParams) => {
+      const data = params.data as nodeModelTree;
+      return data.content;
+    };
+    const labelWidth = 100;
+    const labelFormatter = (params: labelformatterParams) => {
+      const data = params.data as nodeModelTree;
+      //分支节点显示标签
+      if (data.children.length > 1) {
+        return data.labelName;
+      }
+      //有链接节点显示标签
+      if (
+        this.graphData.find((e) => {
+          return e.id == data.id;
+        })
+      ) {
+        return data.labelName;
+      }
+      //zoom 大于1时显示标签
+      const option = this.graph.getOption() as ECOption;
+      if (option.series[0].zoom > 1) {
+        return data.labelName;
+      }
+      return "";
     };
     const tagTreeSeriesWidth = 150;
     let opt: TreeSeriesOption = {
@@ -177,13 +201,31 @@ export class echartsGraph {
         position: "top",
         textBorderColor: "#111f2c",
         textBorderWidth: 2,
+        width: labelWidth,
+        overflow: "truncate",
+        formatter: seriesId == "blockTree" ? labelFormatter : undefined,
+      },
+      /*
+      labelLayout: {
+        hideOverlap: true,
+        x: 0,
+        y: 0,
+        dx: -50,
+        dy: -10,
+      },*/
+      leaves: {
+        label: {
+          formatter: "{b}",
+        },
       },
       roam: seriesId == "blockTree" ? true : false,
       emphasis: {
         //高亮显示所有内容
         disabled: seriesId == "blockTree" ? false : true,
         label: {
-          formatter: seriesId == "blockTree" ? labelFormatter : undefined,
+          position: "top",
+          formatter:
+            seriesId == "blockTree" ? emphasisLabelFormatter : undefined,
           backgroundColor: "#000000",
           padding: 4,
           width: 150,
@@ -513,18 +555,19 @@ export class echartsGraph {
     if (block.name) {
       return block.name;
     }
-    const labelLength = 8; //todo 可以改为自定义
+    //const labelLength = 8; //todo 可以改为自定义
     switch (block.type) {
       case "d":
       case "h":
       case "p":
+        /*保留，截断content
         let label = "";
         if (block.content.length > labelLength) {
           label = block.content.substring(0, labelLength) + "...";
         } else {
           label = block.content;
-        }
-        return label;
+        }*/
+        return block.content; //label;
       default:
         return typeAbbrMap[block.type];
     }
@@ -857,7 +900,9 @@ interface nodeModelGraph extends GraphNodeItemOption {
 export interface ECElementEventParams extends echarts.ECElementEvent {
   data: nodeModelTree | edgeModel | nodeModelGraph;
 }
-
+interface labelformatterParams extends CallbackDataParams {
+  data: nodeModelTree | edgeModel | nodeModelGraph;
+}
 export type i18nType = {
   prefix: string;
   startNodeError: string;
