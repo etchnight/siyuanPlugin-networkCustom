@@ -22,7 +22,7 @@ By default, a new dock appears on the right, click it, pay attention to put the 
 
 #### Right-click Menu
 
-- [x] Extension nodes
+- [x] Extend nodes(Added nodes will be updated)
 - [x] Locate nodes in notes (document tab)
 - [x] View the node in a floating pannel
 - [ ] Delete the node
@@ -43,5 +43,5 @@ If you have any questions, please put a issue at [github issues](https://github.
 
 ### Development Notes
 
-- ❗❗❗ In order to unify project methods and types, Siyuan API-related methods and types are in the project [siyuanPlugin-common](https://github.com/etchnight/siyuanPlugin-common ) .
+- ❗❗❗ In order to unify project methods and types, Siyuan API-related methods and types are in the project [siyuanPlugin-common](https://github.com/etchnight/siyuanPlugin-common) .
 - ❗ For ease of development with TypeScript, the 'echarts/types/dist/shared' file has been modified , some types have been added prefix `export`.

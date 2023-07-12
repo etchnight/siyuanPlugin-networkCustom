@@ -127,7 +127,7 @@ export class echartsGraph {
       //},
       //edgeSymbolSize: 50,
     };
-    const graphOption: ECOption = {
+    let graphOption: ECOption = {
       grid: [
         {
           left: grid.left,
@@ -155,7 +155,7 @@ export class echartsGraph {
       ],
       series: [blockTreeSeries, graphSeries, tagTreeSeries],
     };
-    //graphOption = forDevInit(graphOption); //调试用
+    //graphOption = this.forDevInit(graphOption); //调试用
     this.graph.setOption(graphOption);
   }
   private buildTreeOpt(
@@ -283,17 +283,19 @@ export class echartsGraph {
     return rootNode;
   }
   private forDevInit(graphOption: ECOption) {
-    graphOption.series[0].label.formatter = labelFormater;
-    graphOption.series[2].label.formatter = labelFormater;
-    function labelFormater(params: { data }) {
+    const labelFormater = (params: { data: nodeModelTree }) => {
       let labelName = params.data.labelName;
-      let { idList, itemLayouts } = this.getTreeNodePositionParams();
+      let [idList, itemLayouts] = this.getTreeNodePositionParams(
+        params.data.type == "tag" ? "tagTree" : "blockTree"
+      );
       let { x, y } = this.getTreeNodePosition(params.data, idList, itemLayouts);
       x = Math.round(x);
       y = Math.round(y);
       //let pixel = graph.convertToPixel({ seriesIndex: 0 }, [x, y]);
       return `${labelName}:${x},${y}`;
-    }
+    };
+    graphOption.series[0].label.formatter = labelFormater;
+    graphOption.series[2].label.formatter = labelFormater;
     graphOption.series[1].label.formatter = (params: { data }) => {
       let x = Math.round(params.data.value[0]);
       let y = Math.round(params.data.value[1]);
@@ -310,9 +312,11 @@ export class echartsGraph {
         let model = this.graph.getModel();
         console.log("model", model);
         console.log("TreeModel", model.getSeriesByIndex(0));
+        console.log("TagTreeModel", model.getSeriesByIndex(2));
         console.log("graphModel", model.getSeriesByIndex(1));
         console.log("TreeInfo", this.getDataInfo(0));
         console.log("graphInfo", this.getDataInfo(1));
+        console.log("TagTreeInfo", this.getDataInfo(2));
         console.log("option", this.graph.getOption());
         console.log("graph", this.graph);
       } catch (e) {
@@ -424,6 +428,13 @@ export class echartsGraph {
     menu.addItem({
       icon: "",
       label: "展开节点",
+      click: () => {
+        this.expandNode(params.data as nodeModelTree);
+      },
+    });
+    menu.addItem({
+      icon: "",
+      label: "聚焦",
       click: () => {
         this.expandNode(params.data as nodeModelTree);
       },
@@ -618,6 +629,22 @@ export class echartsGraph {
     return tagsSplited;
   }
   /**
+   * 其实并非克隆，因为原值改变了
+   * @returns
+   */
+  private cloneNodeExceptChildren(
+    node: nodeModelTree,
+    nodeCloneTo: nodeModelTree
+  ) {
+    for (let key of Object.keys(nodeCloneTo)) {
+      if (key == "children") {
+        continue;
+      }
+      nodeCloneTo[key] = node[key];
+    }
+    return;
+  }
+  /**
    * 向树添加节点时，会递归添加其父节点（如果原树中没有的话）
    * @param node
    * @returns
@@ -637,6 +664,8 @@ export class echartsGraph {
       if (!added) {
         treeData[0].children.push(node);
         return;
+      } else {
+        this.cloneNodeExceptChildren(node, added);
       }
       return;
     }
@@ -651,7 +680,7 @@ export class echartsGraph {
       if (!added) {
         parent.children.push(node);
       } else {
-        //?added.parent = parent;
+        this.cloneNodeExceptChildren(node, added);
       }
       return;
     } else {
@@ -801,6 +830,7 @@ export class echartsGraph {
       setTimeout(res, time);
     });
   }
+  private fouseNode(node: nodeModelTree) {}
   public async expandNode(node: nodeModelTree) {
     try {
       await this.expandNodeTry(node);
@@ -817,6 +847,12 @@ export class echartsGraph {
     if (!originBlock) {
       return;
     }
+    //*更新自身
+    const nodeNew = await this.buildNode(originBlock);
+    this.addBlockToTreeData(
+      node.type == "tag" ? this.tagTreeData : this.treeData,
+      nodeNew
+    );
     //*children
     const childrenBlocks = await getChildrenBlocks(node.id);
     this.devConsole(console.timeLog, "expandNode", "children-blocks");
