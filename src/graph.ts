@@ -24,7 +24,12 @@ import {
   GraphChart,
   GraphSeriesOption,
 } from "echarts/charts";
-import { GridComponent, GridComponentOption } from "echarts/components";
+import {
+  GridComponent,
+  GridComponentOption,
+  ToolboxComponent,
+  ToolboxComponentOption,
+} from "echarts/components";
 //*源文件未导出，需修改
 import {
   TreeSeriesNodeItemOption,
@@ -32,11 +37,21 @@ import {
   GraphNodeItemOption,
   CallbackDataParams,
 } from "echarts/types/dist/shared";
-echarts.use([TreeChart, GraphChart, CanvasRenderer, GridComponent]);
+echarts.use([
+  TreeChart,
+  GraphChart,
+  CanvasRenderer,
+  GridComponent,
+  ToolboxComponent,
+]);
 type ECOption = echarts.ComposeOption<
-  TreeSeriesOption | GraphSeriesOption | GridComponentOption
+  | TreeSeriesOption
+  | GraphSeriesOption
+  | GridComponentOption
+  | ToolboxComponentOption
 >;
 //*↑↑↑↑↑eacharts↑↑↑↑↑
+
 export class echartsGraph {
   private i18n: i18nType;
   public graph: echarts.ECharts;
@@ -46,15 +61,16 @@ export class echartsGraph {
   public tagTreeData: nodeModelTree[] = [];
   private app: App;
   private plugin: Plugin;
-  private debug: boolean;
+  private debug: boolean = false;
+  private isFocusing: boolean = false;
   //private rootBlock: Block;
+  private grid: { left: number; width: number; top: number; height: number };
   constructor(i18n: i18nType, app: App, plugin: Plugin) {
     this.i18n = i18n;
     this.app = app;
     this.plugin = plugin;
-    this.debug = false;
   }
-  public async resizeGraph(widthNum: number, heightNum: number) {
+  public resizeGraph(widthNum: number, heightNum: number) {
     if (!this.graph) {
       return;
     }
@@ -85,8 +101,10 @@ export class echartsGraph {
     this.graph.on("click", (params) => {
       this.onNodeClick(params as ECElementEventParams);
     });
-    this.graph.on("treeroam", (params) => {
-      this.onTreeroam(params as ECElementEventParams);
+    this.graph.on("treeroam", () => {
+      //params
+      this.reComputePosition();
+      //this.onTreeroam(params as ECElementEventParams);
     });
     //graph.on("mouseover", onMouseOver);
   }
@@ -97,15 +115,19 @@ export class echartsGraph {
    * @param heightNum
    * @returns
    */
-  public reInitGraph(widthNum: number, heightNum: number) {
-    const grid = {
+  public reInitGraph(widthNum?: number, heightNum?: number) {
+    if (!widthNum && !heightNum) {
+      widthNum = this.graph.getWidth();
+      heightNum = this.graph.getHeight();
+    }
+    this.grid = {
       left: 50,
       width: widthNum - 50 - 50, //-left-right
       top: 30,
       height: heightNum - 30 - 30, //-top-bottom
     };
-    const blockTreeSeries = this.buildTreeOpt("blockTree", grid);
-    const tagTreeSeries = this.buildTreeOpt("tagTree", grid);
+    const blockTreeSeries = this.buildTreeOpt("blockTree");
+    const tagTreeSeries = this.buildTreeOpt("tagTree");
     const graphSeries: GraphSeriesOption = {
       type: "graph",
       id: "blockGraph",
@@ -130,17 +152,17 @@ export class echartsGraph {
     let graphOption: ECOption = {
       grid: [
         {
-          left: grid.left,
-          width: grid.width,
-          top: grid.top,
-          height: grid.height,
+          left: this.grid.left,
+          width: this.grid.width,
+          top: this.grid.top,
+          height: this.grid.height,
         },
       ],
       xAxis: [
         {
           type: "value",
           min: 0,
-          max: grid.width,
+          max: this.grid.width,
           show: false,
         },
       ],
@@ -148,20 +170,33 @@ export class echartsGraph {
         {
           type: "value",
           min: 0,
-          max: grid.height,
+          max: this.grid.height,
           inverse: true,
           show: false,
         },
       ],
       series: [blockTreeSeries, graphSeries, tagTreeSeries],
+      toolbox: {
+        show: true,
+        itemSize: 25,
+        feature: {
+          myTool1: {
+            show: true,
+            title: "取消聚焦", //todo 国际化
+            icon: "path://M214.864,440.317l69.471-41.742c20.83-12.516,47.862-5.776,60.377,15.053,12.516,20.83,5.776,47.862-15.053,60.377L137.653,589.374,22.285,397.369c-12.516-20.83-5.776-47.862,15.053-60.378,20.83-12.515,47.862-5.775,60.377,15.054l34.478,57.38c36.81-123.472,126.622-227,249.697-279.243,223.634-94.927,481.893,9.459,576.842,233.144,94.948,223.685-9.365,481.973-232.998,576.9-161.485,68.546-346.059,34.258-472.152-83.359-17.77-16.575-18.738-44.418-2.162-62.188,16.575-17.77,44.418-18.738,62.187-2.163,100.9,94.117,248.546,121.546,377.742,66.705C870.24,783.287,953.688,576.663,877.727,397.71c-75.96-178.953-282.562-262.459-461.452-186.524-100.372,42.605-173.066,127.8-201.411,229.131z",
+            //icon: "path://M432.45,595.444c0,2.177-4.661,6.82-11.305,6.82c-6.475,0-11.306-4.567-11.306-6.82s4.852-6.812,11.306-6.812C427.841,588.632,432.452,593.191,432.45,595.444L432.45,595.444z M421.155,589.876c-3.009,0-5.448,2.495-5.448,5.572s2.439,5.572,5.448,5.572c3.01,0,5.449-2.495,5.449-5.572C426.604,592.371,424.165,589.876,421.155,589.876L421.155,589.876z M421.146,591.891c-1.916,0-3.47,1.589-3.47,3.549c0,1.959,1.554,3.548,3.47,3.548s3.469-1.589,3.469-3.548C424.614,593.479,423.062,591.891,421.146,591.891L421.146,591.891zM421.146,591.891",
+            onclick: () => {
+              this.reInitGraph();
+              this.reComputePosition();
+            },
+          },
+        },
+      },
     };
-    //graphOption = this.forDevInit(graphOption); //调试用
+    graphOption = this.debug ? this.forDevInit(graphOption) : graphOption; //调试用
     this.graph.setOption(graphOption);
   }
-  private buildTreeOpt(
-    seriesId: seriesID,
-    grid: { left: number; width: number; top: number; height: number }
-  ): TreeSeriesOption {
+  private buildTreeOpt(seriesId: seriesID): TreeSeriesOption {
     const emphasisLabelFormatter = (params: labelformatterParams) => {
       const data = params.data as nodeModelTree;
       return data.content;
@@ -187,6 +222,9 @@ export class echartsGraph {
         return data.labelName;
       }
       return "";
+    };
+    const showLabelName = (params: labelformatterParams) => {
+      return params.data.labelName;
     };
     const tagTreeSeriesWidth = 150;
     let opt: TreeSeriesOption = {
@@ -215,10 +253,9 @@ export class echartsGraph {
       },*/
       leaves: {
         label: {
-          formatter: "{b}",
+          formatter: showLabelName,
         },
       },
-      roam: seriesId == "blockTree" ? true : false,
       emphasis: {
         //高亮显示所有内容
         disabled: seriesId == "blockTree" ? false : true,
@@ -235,18 +272,18 @@ export class echartsGraph {
       },
       left:
         seriesId == "blockTree"
-          ? grid.left
-          : grid.left + grid.width - tagTreeSeriesWidth + 30,
+          ? this.grid.left
+          : this.grid.left + this.grid.width - tagTreeSeriesWidth + 30,
       width:
         seriesId == "blockTree"
-          ? grid.width - tagTreeSeriesWidth
+          ? this.grid.width - tagTreeSeriesWidth
           : tagTreeSeriesWidth - 30,
-      top: grid.top,
-      height: grid.height,
+      top: this.grid.top,
+      height: this.grid.height,
       zoom: 1,
+      roam: seriesId == "blockTree" ? true : true,
     };
-    //@ts-ignore
-    opt.center = [opt.width / 2, opt.height / 2];
+    //opt.center = [opt.width / 2, opt.height / 2];
     return opt;
   }
   public async reInitData() {
@@ -288,11 +325,16 @@ export class echartsGraph {
       let [idList, itemLayouts] = this.getTreeNodePositionParams(
         params.data.type == "tag" ? "tagTree" : "blockTree"
       );
-      let { x, y } = this.getTreeNodePosition(params.data, idList, itemLayouts);
+      let { x, y } = this.getTreeNodePosition(
+        params.data.type == "tag" ? this.tagTreeData : this.treeData,
+        params.data,
+        idList,
+        itemLayouts
+      );
       x = Math.round(x);
       y = Math.round(y);
       //let pixel = graph.convertToPixel({ seriesIndex: 0 }, [x, y]);
-      return `${labelName}:${x},${y}`;
+      return `[${x},${y}]${labelName}`;
     };
     graphOption.series[0].label.formatter = labelFormater;
     graphOption.series[2].label.formatter = labelFormater;
@@ -301,7 +343,7 @@ export class echartsGraph {
       let y = Math.round(params.data.value[1]);
       let labelName = params.data.labelName;
       //let pixel = graph.convertToPixel({ seriesIndex: 1 }, [x, y]);
-      return `${labelName}:${x},${y}`;
+      return `[${x},${y}]${labelName}`;
     };
     graphOption.series[1].label.show = true;
     graphOption.xAxis[0].show = true;
@@ -363,33 +405,19 @@ export class echartsGraph {
    * 重算关系图位置
    */
   public reComputePosition() {
-    let [idList0, itemLayouts0] = this.getTreeNodePositionParams("blockTree");
-    let [idList2, itemLayouts2] = this.getTreeNodePositionParams("tagTree");
-    let option = this.graph.getOption() as ECOption;
+    const treeSeries = this.getSeries(0);
+    const tagTreeSeries = this.getSeries(2);
+    const opt = this.graph.getOption() as ECOption;
+    const treeData = opt.series[0].data;
+    const tagTreeData = opt.series[2].data;
     for (let node of this.graphData) {
       node = this.treePosition2GraphValue(
-        node,
-        node.type == "tag" ? idList2 : idList0,
-        node.type == "tag" ? itemLayouts2 : itemLayouts0,
-        node.type == "tag" ? option.series[2].left : option.series[0].left,
-        node.type == "tag" ? option.series[2].top : option.series[0].top
+        node.type == "tag" ? tagTreeSeries : treeSeries,
+        node.type == "tag" ? tagTreeData : treeData,
+        node
       );
     }
     this.refreshGraph(["blockGraph"]);
-  }
-  /**
-   * todo 集中获取treePosition2GraphValue所需参数
-   * @returns
-   */
-  private treePosition2GraphValueParams(treeId: seriesID) {
-    const [idList, itemLayouts] = this.getTreeNodePositionParams(treeId);
-    const option = this.graph.getOption();
-    return {
-      idList: idList,
-      itemLayouts: itemLayouts,
-      left: option.grid[0].left,
-      top: option.grid[0].top,
-    };
   }
   /**
    *
@@ -397,17 +425,29 @@ export class echartsGraph {
    * @param top  realPosition[1] += top * tree.coordinateSystem._zoom;
    */
   private treePosition2GraphValue(
-    node: nodeModelGraph,
-    idList: string[],
-    itemLayouts: { x: number; y: number }[],
-    left: number,
-    top: number
+    treeSeries,
+    treeData: nodeModelTree[],
+    node: nodeModelGraph
   ) {
-    const tree = node.type == "tag" ? this.getSeries(2) : this.getSeries(0);
-    let { x, y } = this.getTreeNodePosition(node, idList, itemLayouts);
-    let realPosition = tree.coordinateSystem.dataToPoint([x, y]);
-    realPosition[0] += left * tree.coordinateSystem._zoom;
-    realPosition[1] += top * tree.coordinateSystem._zoom;
+    const info = treeSeries.getData();
+    const option = this.graph.getOption() as ECOption;
+    let { x, y } = this.getTreeNodePosition(
+      treeData,
+      node,
+      info._idList as BlockId[],
+      info._itemLayouts
+    );
+    if (!x || !y) {
+      node.value = [NaN, NaN];
+      return node;
+    }
+    let realPosition = treeSeries.coordinateSystem.dataToPoint([x, y]);
+    const left =
+      node.type == "tag" ? option.series[2].left : option.series[0].left;
+    const top =
+      node.type == "tag" ? option.series[2].top : option.series[0].top;
+    realPosition[0] += left * treeSeries.coordinateSystem._zoom;
+    realPosition[1] += top * treeSeries.coordinateSystem._zoom;
     node.value = this.graph.convertFromPixel(
       { gridIndex: 0 },
       realPosition
@@ -419,68 +459,82 @@ export class echartsGraph {
     if (!this.graph) {
       return;
     }
-    if ((params.seriesId as seriesID) != "blockTree") {
-      return;
-    }
     const menu = new Menu("plugin-networkCustom-Menu", () => {
       //console.log("菜单");
     });
-    menu.addItem({
-      icon: "",
-      label: "展开节点",
-      click: () => {
-        this.expandNode(params.data as nodeModelTree);
-      },
-    });
-    menu.addItem({
-      icon: "",
-      label: "聚焦",
-      click: () => {
-        this.expandNode(params.data as nodeModelTree);
-      },
-    });
-    menu.addItem({
-      icon: "iconLayoutBottom",
-      label: "在笔记中定位节点", //todo 国际化
-      click: async () => {
-        openTab({
-          app: this.app,
-          doc: {
-            id: params.data.id,
-            action: ["cb-get-focus"],
-          },
-        });
-      },
-    });
     const event = params.event.event as MouseEvent;
-    //*鼠标指针一定要在新panel里，不然会立刻关闭窗口
-    let panelX = event.clientX - 600; //768
-    let panelY = event.clientY - 150; //min:288
-    if (panelY + 288 > window.innerHeight) {
-      panelY = window.innerHeight - 310;
+    const expand = () => {
+      menu.addItem({
+        icon: "",
+        label: "展开节点",
+        click: () => {
+          this.expandNode(params.data as nodeModelTree);
+        },
+      });
+    };
+    const focus = () => {
+      menu.addItem({
+        icon: "",
+        label: "聚焦",
+        click: () => {
+          this.focusNode(params.data as nodeModelTree);
+        },
+      });
+    };
+    const editInTab = () => {
+      menu.addItem({
+        icon: "iconLayoutBottom",
+        label: "在笔记中定位节点", //todo 国际化
+        click: async () => {
+          openTab({
+            app: this.app,
+            doc: {
+              id: params.data.id,
+              action: ["cb-get-focus"],
+            },
+          });
+        },
+      });
+    };
+    const editInFloat = () => {
+      //*鼠标指针一定要在新panel里，不然会立刻关闭窗口
+      let panelX = event.clientX - 600; //768
+      let panelY = event.clientY - 150; //min:288
+      if (panelY + 288 > window.innerHeight) {
+        panelY = window.innerHeight - 310;
+      }
+      menu.addItem({
+        icon: "iconLayout",
+        label: "在浮动窗口查看节点",
+        click: async () => {
+          this.plugin.addFloatLayer({
+            ids: [params.data.id],
+            x: panelX,
+            y: panelY,
+          });
+          //*查找新panel并钉住
+          const panels = window.siyuan.blockPanels;
+          const currentPanel = panels.find((value) => {
+            if (value.nodeIds.length == 0) {
+              return false;
+            }
+            return value.nodeIds[0] == params.data.id;
+          });
+          let ele = currentPanel.element;
+          ele = ele.querySelector("[data-type=pin]");
+          ele.click();
+        },
+      });
+    };
+    switch (params.seriesId as seriesID) {
+      case "blockTree":
+      case "blockGraph":
+        expand();
+        focus();
+        editInTab();
+        editInFloat();
+        break;
     }
-    menu.addItem({
-      icon: "iconLayout",
-      label: "在浮动窗口查看节点",
-      click: async () => {
-        this.plugin.addFloatLayer({
-          ids: [params.data.id],
-          x: panelX,
-          y: panelY,
-        });
-        //*查找新panel并钉住
-        const panels = window.siyuan.blockPanels;
-        const currentPanel = panels.find((value) => {
-          if (value.nodeIds.length == 0) {
-            return false;
-          }
-          return value.nodeIds[0] == params.data.id;
-        });
-        let ele = currentPanel.element;
-        ele = ele.querySelector("[data-type=pin]");
-        ele.click();
-      },
-    });
     menu.open({
       x: event.clientX + 5,
       y: event.clientY + 5,
@@ -510,6 +564,10 @@ export class echartsGraph {
         break;
     }
   }
+  /**
+   * @deprecated
+   */
+  //@ts-ignore
   private onTreeroam(params: ECElementEventParams) {
     /*//?不生效
     this.graph.dispatchAction({
@@ -521,7 +579,7 @@ export class echartsGraph {
       dx: params.dx,
       dy: params.dy,
     });*/
-    //*tagTree无分支则不缩放
+    //todo tagTree无分支则不缩放
     if (this.tagTreeData[0].children.length) {
     }
     let option = this.graph.getOption() as ECOption;
@@ -530,7 +588,9 @@ export class echartsGraph {
       option.series[2].center[1] -= params.dy;
     }
     if (params.zoom) {
-      option.series[2].zoom = option.series[2].zoom * params.zoom;
+      const zoom = option.series[0].zoom;
+      //option.series[2].zoom = option.series[2].zoom * params.zoom;
+      option.series[2].zoom = zoom;
     }
     this.graph.setOption(option);
     this.reComputePosition();
@@ -552,7 +612,7 @@ export class echartsGraph {
       id: block.id,
       type: block.type,
       children: [],
-      name: labelName,
+      name: block.id, //todo 其实id和name应只保留一个
       labelName: labelName,
       path: block.path,
       box: block.box,
@@ -649,7 +709,7 @@ export class echartsGraph {
    * @param node
    * @returns
    */
-  private async addBlockToTreeData(
+  private async addNodeToTreeData(
     treeData: nodeModelTree[],
     node: nodeModelTree
   ) {
@@ -688,18 +748,17 @@ export class echartsGraph {
       const parentBlock = await getParentBlock(node);
       let parentNode = await this.buildNode(parentBlock);
       parentNode.children.push(node);
-      await this.addBlockToTreeData(treeData, parentNode);
+      await this.addNodeToTreeData(treeData, parentNode);
     }
   }
   /**
    * 除了addNodeToTreeData本身，在其他任何地方调用addNodeToTreeData，都必须立刻刷新数据
-   *@deprecated
    */
   private async addNodeToTreeDataAndRefresh(
     treeData: nodeModelTree[],
     node: nodeModelTree
   ) {
-    await this.addBlockToTreeData(treeData, node);
+    await this.addNodeToTreeData(treeData, node);
     this.refreshGraph(["blockGraph", "blockTree", "tagTree"]);
     return;
   }
@@ -753,16 +812,10 @@ export class echartsGraph {
       return item.id == node.id;
     });
     //*计算node位置
-    const seriesId: seriesID = node.type == "tag" ? "tagTree" : "blockTree";
-    let [idList, itemLayouts] = this.getTreeNodePositionParams(seriesId);
-    const option = this.graph.getOption() as ECOption;
-    node = this.treePosition2GraphValue(
-      node,
-      idList,
-      itemLayouts,
-      node.type == "tag" ? option.series[2].left : option.series[0].left,
-      node.type == "tag" ? option.series[2].top : option.series[0].top
-    );
+    const treeSeries =
+      node.type == "tag" ? this.getSeries(2) : this.getSeries(0);
+    const treeData = node.type == "tag" ? this.tagTreeData : this.treeData;
+    node = this.treePosition2GraphValue(treeSeries, treeData, node);
     if (!nodeAdded) {
       this.graphData.push(node);
     } else {
@@ -787,6 +840,7 @@ export class echartsGraph {
   }
 
   private getTreeNodePosition(
+    treeData: nodeModelTree[],
     node: nodeModelGraph,
     idList: BlockId[],
     itemLayouts: { x: number; y: number }[]
@@ -799,18 +853,19 @@ export class echartsGraph {
     });
     if (index >= itemLayouts.length || !itemLayouts[index]) {
       //*如果在itemLayouts没有，则找parent的位置
-      let parent = this.findTreeDataById(
-        node.type == "tag" ? this.tagTreeData : this.treeData,
-        node.parent_id
-      );
+      let parent = this.findTreeDataById(treeData, node.parent_id);
       if (!parent) {
-        console.error(
-          `尝试在treeData中查找'${node.labelName}'(${node.id})的父节点(${node.parent_id})失败`
+        this.devConsole(
+          console.warn,
+          `未找到${node.labelName}(id:${node.id})的父节点`
         );
-        console.log("此时的图数据", this.graph.getOption());
-        throw "在tree中找不到父节点";
+        return {
+          x: NaN,
+          y: NaN,
+        };
       }
       return this.getTreeNodePosition(
+        treeData,
         this.buildGraphNode(parent),
         idList,
         itemLayouts
@@ -825,12 +880,123 @@ export class echartsGraph {
     }
     callback(...args);
   }
+  /**
+   * @deprecated
+   */
+  //@ts-ignore
   private async sleep(time: number) {
     return new Promise((res) => {
       setTimeout(res, time);
     });
   }
-  private fouseNode(node: nodeModelTree) {}
+  private async focusNode(node: nodeModelTree) {
+    if (node.type == "tag") {
+      return;
+    }
+    await this.expandNode(node);
+    //*初始化
+    this.graph.clear();
+    this.reInitGraph(this.graph.getWidth(), this.graph.getHeight());
+    let parent: nodeModelTree;
+    let treeNodeArray: nodeModelTree[] = [];
+    const setEmphasis = (node: nodeModelTree) => {
+      if (!node.itemStyle) {
+        node.itemStyle = {};
+      }
+      node.itemStyle.color = "#FF4136";
+    };
+    if (!node.parent_id) {
+      parent = structuredClone(node);
+      setEmphasis(parent);
+      for (let child of parent.children) {
+        child.children = [];
+        treeNodeArray.push(child);
+      }
+    } else {
+      parent = this.findTreeDataById(this.treeData, node.parent_id);
+      await this.expandNode(parent);
+      parent = structuredClone(parent);
+      for (let brother of parent.children) {
+        treeNodeArray.push(brother);
+        if (brother.id != node.id) {
+          brother.children = [];
+        } else {
+          setEmphasis(brother);
+        }
+        for (let child of brother.children) {
+          treeNodeArray.push(child);
+          child.children = [];
+        }
+      }
+    }
+    treeNodeArray.push(parent);
+    let option = this.graph.getOption() as ECOption;
+    let treeSeries = option.series[0] as TreeSeriesOption;
+    treeSeries.data = [parent];
+    treeSeries.roam = false;
+    const showLabelName = (params: labelformatterParams) => {
+      return params.data.labelName;
+    };
+    treeSeries.label.formatter = showLabelName;
+    const graphHeightRatio = 0.7;
+    treeSeries.height = (treeSeries.height as number) * graphHeightRatio;
+    this.graph.setOption(option);
+    //*设置状态
+    this.isFocusing = true;
+    //*设置关系图
+    let graphSeries = option.series[1] as GraphSeriesOption;
+    graphSeries.itemStyle.opacity = 1;
+    this.reComputePosition();
+    //const graphDataClone=structuredClone(this.graphData)
+    const newGraphData1 = this.graphData.filter((item) => {
+      return item.value[0] && item.value[1];
+    });
+    const linkFilter = (item: nodeModelTree) => {
+      return this.graphLinks.find((link) => {
+        return link.source == item.id || link.target == item.id;
+      });
+    };
+    let newGraphData2: nodeModelGraph[] = this.graphData.filter((item) => {
+      if (item.value[0] && item.value[1]) {
+        return false;
+      }
+      //*找链接的节点id
+      let linkNodeIds = [];
+      for (let link of this.graphLinks) {
+        if (link.source == item.id) {
+          linkNodeIds.push(link.target);
+        } else if (link.target == item.id) {
+          linkNodeIds.push(link.source);
+        }
+      }
+      //*链接的节点在不在树中
+      for (let nodeId of linkNodeIds) {
+        for (let node of treeNodeArray) {
+          if (nodeId == node.id) {
+            return true;
+          }
+        }
+      }
+      return false;
+    });
+    const labelWidth = 100;
+    let row = 0;
+    let col = 0;
+    for (let i = 0; i < newGraphData2.length; i++) {
+      newGraphData2[i].value[0] = labelWidth * col;
+      newGraphData2[i].value[1] = 30 * (row + 1) + treeSeries.height;
+      if ((col + 1) * labelWidth < (treeSeries.width as number)) {
+        col++;
+      } else {
+        col = 0;
+        row++;
+      }
+    }
+    graphSeries.data = newGraphData2.concat(newGraphData1);
+    graphSeries.label = treeSeries.label;
+    graphSeries.emphasis.label = treeSeries.emphasis.label;
+    this.graph.setOption(option);
+  }
   public async expandNode(node: nodeModelTree) {
     try {
       await this.expandNodeTry(node);
@@ -849,7 +1015,7 @@ export class echartsGraph {
     }
     //*更新自身
     const nodeNew = await this.buildNode(originBlock);
-    this.addBlockToTreeData(
+    await this.addNodeToTreeDataAndRefresh(
       node.type == "tag" ? this.tagTreeData : this.treeData,
       nodeNew
     );

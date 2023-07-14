@@ -18,6 +18,7 @@ export default class networkCustom extends Plugin {
     const eGraph = new echartsGraph(this.i18n as i18nType, this.app, this);
     let lastTabWidth = 0;
     const i18n = this.i18n;
+    //@ts-ignore
     const dock = this.addDock({
       config: {
         position: "RightTop",

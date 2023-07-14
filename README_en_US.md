@@ -12,24 +12,25 @@ By default, a new dock appears on the right, click it, pay attention to put the 
 
 #### Basic Features
 
-- [x] Roam(scale and move)
-- [x] Collapse and expand nodes (left-click)
-- [x] Displays the block content or type
-- [x] Display block details(hover)
-- [x] Displays the label tree
+- [x] Roam(scale and move)(v1.0)
+- [x] Collapse and expand nodes (left-click)(v1.0)
+- [x] Displays the block content or type(v1.0)
+- [x] Display block details(hover)(v1.1)
+- [x] Displays the label tree(v2.0)
 - [ ] Use different colors distinguish different block types
 - [ ] Displays the reference type
 
 #### Right-click Menu
 
-- [x] Extend nodes(Added nodes will be updated)
-- [x] Locate nodes in notes (document tab)
-- [x] View the node in a floating pannel
+- [x] Extend nodes(Added nodes will be updated)(v1.0)
+- [x] Locate nodes in notes (document tab)(v1.1)
+- [x] View the node in a floating pannel(v1.1)
+- [x] Focus Node(unfocus button is on the toolbar)(v2.1)
 - [ ] Delete the node
 
 #### Advanced Features
 
-- [ ] Switch to force-directed layout
+~~- [ ] Switch to force-directed layout~~
 - [ ] Setting how to display reference type
 
 ### Feedback
