@@ -469,6 +469,7 @@ export class echartsGraph {
         label: "展开节点",
         click: () => {
           this.expandNode(params.data as nodeModelTree);
+          menu.close();
         },
       });
     };
@@ -478,6 +479,7 @@ export class echartsGraph {
         label: "聚焦",
         click: () => {
           this.focusNode(params.data as nodeModelTree);
+          menu.close();
         },
       });
     };
@@ -493,6 +495,7 @@ export class echartsGraph {
               action: ["cb-get-focus"],
             },
           });
+          menu.close();
         },
       });
     };
@@ -523,6 +526,7 @@ export class echartsGraph {
           let ele = currentPanel.element;
           ele = ele.querySelector("[data-type=pin]");
           ele.click();
+          menu.close();
         },
       });
     };
@@ -935,6 +939,9 @@ export class echartsGraph {
     treeSeries.data = [parent];
     treeSeries.roam = false;
     const showLabelName = (params: labelformatterParams) => {
+      if (params.data.isHideLabel) {
+        return "";
+      }
       return params.data.labelName;
     };
     treeSeries.label.formatter = showLabelName;
@@ -948,14 +955,12 @@ export class echartsGraph {
     graphSeries.itemStyle.opacity = 1;
     this.reComputePosition();
     //const graphDataClone=structuredClone(this.graphData)
-    const newGraphData1 = this.graphData.filter((item) => {
+    let newGraphData1 = this.graphData.filter((item) => {
       return item.value[0] && item.value[1];
     });
-    const linkFilter = (item: nodeModelTree) => {
-      return this.graphLinks.find((link) => {
-        return link.source == item.id || link.target == item.id;
-      });
-    };
+    newGraphData1.forEach((item) => {
+      item.isHideLabel = true;
+    });
     let newGraphData2: nodeModelGraph[] = this.graphData.filter((item) => {
       if (item.value[0] && item.value[1]) {
         return false;
@@ -1098,6 +1103,7 @@ interface nodeModelGraph extends GraphNodeItemOption {
   name: string; //?会改变
   value: [number, number];
   type: BlockType | "tag";
+  isHideLabel?: boolean;
 }
 export interface ECElementEventParams extends echarts.ECElementEvent {
   data: nodeModelTree | edgeModel | nodeModelGraph;
