@@ -77,8 +77,10 @@ export default class networkCustom extends Plugin {
           } else {
             //*改变大小
             eGraph.resizeGraph(widthNum, heightNum);
-            eGraph.reInitGraph(widthNum, heightNum);
-            eGraph.reComputePosition();
+            if(!eGraph.isFocusing){
+              eGraph.reInitGraph(widthNum, heightNum);
+              eGraph.reComputePosition();
+            }
           }
         }
         lastTabWidth = widthNum || 0;

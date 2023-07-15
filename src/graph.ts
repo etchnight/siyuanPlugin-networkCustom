@@ -62,7 +62,7 @@ export class echartsGraph {
   private app: App;
   private plugin: Plugin;
   private debug: boolean = false;
-  private isFocusing: boolean = false;
+  public isFocusing: boolean = false;
   //private rootBlock: Block;
   private grid: { left: number; width: number; top: number; height: number };
   constructor(i18n: i18nType, app: App, plugin: Plugin) {
