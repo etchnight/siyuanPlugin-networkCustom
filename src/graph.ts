@@ -533,7 +533,9 @@ export class echartsGraph {
     switch (params.seriesId as seriesID) {
       case "blockTree":
       case "blockGraph":
-        expand();
+        if (!this.isFocusing) {
+          expand();
+        }
         focus();
         editInTab();
         editInFloat();
@@ -897,43 +899,66 @@ export class echartsGraph {
     if (node.type == "tag") {
       return;
     }
-    await this.expandNode(node);
+    this.graph.showLoading();
     //*初始化
     this.graph.clear();
     this.reInitGraph(this.graph.getWidth(), this.graph.getHeight());
     let parent: nodeModelTree;
+    //*确定起始节点
+    if (!node.parent_id) {
+      parent = node;
+    } else {
+      parent = this.findTreeDataById(this.treeData, node.parent_id);
+    }
+    //*展开节点
+    await this.expandNode(parent);
+    this.graph.showLoading();
+    for (let brother of parent.children) {
+      for (let child of brother.children) {
+        await this.expandRefOrDef(child, "ref");
+        await this.expandRefOrDef(child, "def");
+        await this.expandTag(child);
+      }
+      if (brother.id == node.id) {
+        continue;
+      }
+      await this.expandRefOrDef(brother, "ref");
+      await this.expandRefOrDef(brother, "def");
+      await this.expandTag(brother);
+    }
+    //*clone
+    parent = structuredClone(parent);
+    //*设置高亮、建立数组、去除child等处理
     let treeNodeArray: nodeModelTree[] = [];
-    const setEmphasis = (node: nodeModelTree) => {
+    const dealSelf = (node: nodeModelTree) => {
+      //*设置高亮
       if (!node.itemStyle) {
         node.itemStyle = {};
       }
       node.itemStyle.color = "#FF4136";
+      treeNodeArray.push(node);
     };
-    if (!node.parent_id) {
-      parent = structuredClone(node);
-      setEmphasis(parent);
-      for (let child of parent.children) {
-        child.children = [];
-        treeNodeArray.push(child);
-      }
+    const dealOther = (node: nodeModelTree) => {
+      treeNodeArray.push(node);
+      node.children = [];
+    };
+    if (parent.id == node.id) {
+      dealSelf(parent);
     } else {
-      parent = this.findTreeDataById(this.treeData, node.parent_id);
-      await this.expandNode(parent);
-      parent = structuredClone(parent);
-      for (let brother of parent.children) {
-        treeNodeArray.push(brother);
-        if (brother.id != node.id) {
-          brother.children = [];
-        } else {
-          setEmphasis(brother);
-        }
-        for (let child of brother.children) {
-          treeNodeArray.push(child);
-          child.children = [];
-        }
+      treeNodeArray.push(node);
+    }
+    for (let brother of parent.children) {
+      treeNodeArray.push(brother);
+      if (brother.id != node.id) {
+        dealOther(brother);
+      } else {
+        dealSelf(brother);
+      }
+      for (let child of brother.children) {
+        dealOther(child);
       }
     }
-    treeNodeArray.push(parent);
+    //*更新树数据、更新树配置
     let option = this.graph.getOption() as ECOption;
     let treeSeries = option.series[0] as TreeSeriesOption;
     treeSeries.data = [parent];
@@ -1001,6 +1026,7 @@ export class echartsGraph {
     graphSeries.label = treeSeries.label;
     graphSeries.emphasis.label = treeSeries.emphasis.label;
     this.graph.setOption(option);
+    this.graph.hideLoading();
   }
   public async expandNode(node: nodeModelTree) {
     try {
@@ -1011,7 +1037,7 @@ export class echartsGraph {
     }
   }
   private async expandNodeTry(node: nodeModelTree) {
-    this.graph.showLoading(); //?有概率导致右键菜单失效
+    this.graph.showLoading();
     this.devConsole(console.time, "expandNode");
     let originBlock = await getBlockById(node.id);
     this.devConsole(console.timeLog, "expandNode", "originBlock");
@@ -1025,35 +1051,42 @@ export class echartsGraph {
       nodeNew
     );
     //*children
-    const childrenBlocks = await getChildrenBlocks(node.id);
-    this.devConsole(console.timeLog, "expandNode", "children-blocks");
-    for (let child of childrenBlocks) {
-      let node = this.buildNodeWithoutParent(child);
-      node.parent_id = originBlock.id;
-      await this.addNodeToTreeDataAndRefresh(this.treeData, node);
-    }
+    await this.expandChildren(node.id);
     this.devConsole(console.timeLog, "expandNode", "children");
     //*refBlocks
-    const refBlocks = await getRefBlocks(node.id);
+    await this.expandRefOrDef(node, "ref");
+    this.devConsole(console.timeLog, "expandNode", "refBlocks");
+    //*defBlocks
+    await this.expandRefOrDef(node, "def");
+    this.devConsole(console.timeLog, "expandNode", "defBlocks");
+    //*tags
+    await this.expandTag(node);
+    this.devConsole(console.timeLog, "expandNode", "tags");
+
+    this.reComputePosition();
+    this.devConsole(console.timeEnd, "expandNode");
+    this.graph.hideLoading();
+  }
+  private async expandChildren(nodeId: BlockId) {
+    const childrenBlocks = await getChildrenBlocks(nodeId);
+    for (let child of childrenBlocks) {
+      let node = this.buildNodeWithoutParent(child);
+      node.parent_id = nodeId;
+      await this.addNodeToTreeDataAndRefresh(this.treeData, node);
+    }
+  }
+  private async expandRefOrDef(node: nodeModelTree, type: "ref" | "def") {
+    const refBlocks =
+      type == "ref" ? await getRefBlocks(node.id) : await getDefBlocks(node.id);
     let refNodes: nodeModelTree[] = [];
     for (let child of refBlocks) {
       let node = await this.buildNode(child);
       await this.addNodeToTreeDataAndRefresh(this.treeData, node);
       refNodes.push(node);
     }
-    this.addNodesAndEdges(refNodes, node, "ref");
-    this.devConsole(console.timeLog, "expandNode", "refBlocks");
-    //*defBlocks
-    const defBlocks = await getDefBlocks(node.id);
-    let defNodes: nodeModelTree[] = [];
-    for (let child of defBlocks) {
-      let node = await this.buildNode(child);
-      await this.addNodeToTreeDataAndRefresh(this.treeData, node);
-      defNodes.push(node);
-    }
-    this.addNodesAndEdges(defNodes, node, "def");
-    this.devConsole(console.timeLog, "expandNode", "defBlocks");
-    //*tags
+    this.addNodesAndEdges(refNodes, node, type);
+  }
+  private async expandTag(node: nodeModelTree) {
     const tagNodes = this.buildTagNodes(node.tag);
     let tagLeaves: nodeModelTree[] = [];
     for (let group of tagNodes) {
@@ -1063,9 +1096,6 @@ export class echartsGraph {
       tagLeaves.push(group[group.length - 1]);
     }
     this.addNodesAndEdges(tagLeaves, node, "ref");
-    this.reComputePosition();
-    this.devConsole(console.timeEnd, "expandNode");
-    this.graph.hideLoading();
   }
 }
 
