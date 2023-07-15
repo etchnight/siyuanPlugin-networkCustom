@@ -1023,6 +1023,7 @@ export class echartsGraph {
       }
     }
     graphSeries.data = newGraphData2.concat(newGraphData1);
+    graphSeries.links = this.graphLinks;
     graphSeries.label = treeSeries.label;
     graphSeries.emphasis.label = treeSeries.emphasis.label;
     this.graph.setOption(option);
