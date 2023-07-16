@@ -36,7 +36,7 @@
 
 ### 部分功能预览
 
-![聚焦](https://github.com/etchnight/siyuanPlugin-networkCustom/blob/ea91705ec08b131a479f17dde3845200e49bdc5f/asset/focus.png)
+![聚焦](https://github.com/etchnight/siyuanPlugin-networkCustom/raw/main/asset/focus.png)
 
 ### 反馈
 
