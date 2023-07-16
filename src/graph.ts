@@ -106,6 +106,12 @@ export class echartsGraph {
       this.reComputePosition();
       //this.onTreeroam(params as ECElementEventParams);
     });
+    this.graph.on("mouseover", (params) => {
+      this.onMouseover(params as ECElementEventParams);
+    });
+    this.graph.on("mouseout", () => {
+      this.onMouseout();
+    });
     //graph.on("mouseover", onMouseOver);
   }
   /**
@@ -144,10 +150,11 @@ export class echartsGraph {
       },
       edgeSymbol: ["none", "arrow"],
       itemStyle: { opacity: 0 },
-      //lineStyle: {
-      //  width: 15,
-      //},
-      //edgeSymbolSize: 50,
+      emphasis: {
+        lineStyle: {
+          color: "#FF4136",
+        },
+      },
     };
     let graphOption: ECOption = {
       grid: [
@@ -607,6 +614,28 @@ export class echartsGraph {
     this.graph.setOption(option);
     this.reComputePosition();
   }
+  private onMouseover(params: ECElementEventParams) {
+    const nodeId = params.data.id;
+    //*link的样式只是一种临时状态，不需要在this.graphLinks中储存
+    let option = this.graph.getOption() as ECOption;
+    let graphSeries = option.series[1] as GraphSeriesOption;
+    let graphLinks = graphSeries.links;
+    for (let link of graphLinks) {
+      if (link.source != nodeId && link.target != nodeId) {
+        continue;
+      }
+      link.lineStyle = {
+        color: "#FF4136",
+      };
+    }
+    this.graph.setOption(option);
+  }
+  private onMouseout() {
+    let option = this.graph.getOption() as ECOption;
+    let graphSeries = option.series[1] as GraphSeriesOption;
+    graphSeries.links = this.graphLinks;
+    this.graph.setOption(option);
+  }
   /**
    * 未构建children和parent
    * @param block
@@ -773,6 +802,37 @@ export class echartsGraph {
     await this.addNodeToTreeData(treeData, node);
     this.refreshGraph(["blockGraph", "blockTree", "tagTree"]);
     return;
+  }
+
+  private findGraphLingLinks(graphLinks: edgeModel[], nodeId: BlockId) {
+    return graphLinks.filter((link) => {
+      return link.source == nodeId || link.target == nodeId;
+    });
+  }
+  /**
+   * 查找链接的node
+   * @param graphData
+   * @param node
+   * @returns
+   */
+  private findGraphLinkingNodes(
+    graphData: nodeModelGraph[],
+    graphLinks: edgeModel[],
+    nodeId: BlockId
+  ): nodeModelGraph[] {
+    let linkNodeIds = [];
+    for (let link of graphLinks) {
+      if (link.source == nodeId) {
+        linkNodeIds.push(link.target);
+      } else if (link.target == nodeId) {
+        linkNodeIds.push(link.source);
+      }
+    }
+    return graphData.filter((item) => {
+      return linkNodeIds.find((id) => {
+        return id == item.id;
+      });
+    });
   }
   private findTreeDataById(children: nodeModelTree[], id: string) {
     let node: nodeModelTree;
@@ -969,7 +1029,9 @@ export class echartsGraph {
     treeSeries.data = [parent];
     treeSeries.roam = false;
     const showLabelName = (params: labelformatterParams) => {
-      if (params.data.isHideLabel) {
+      //*该配置有两个作用：一是让树图显示所有标签，二是让关系图除在树图中的外，显示所有标签
+      let data = params.data as nodeModelGraph;
+      if (data.isHideLabel) {
         return "";
       }
       return params.data.labelName;
@@ -1029,6 +1091,8 @@ export class echartsGraph {
     }
     graphSeries.data = newGraphData2.concat(newGraphData1);
     graphSeries.links = this.graphLinks;
+    graphSeries.lineStyle.curveness = 0.5;
+    //*统一树和图配置
     graphSeries.label = treeSeries.label;
     graphSeries.emphasis.label = treeSeries.emphasis.label;
     this.graph.setOption(option);
