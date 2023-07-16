@@ -34,6 +34,10 @@
 ~~- [ ] 切换为力引导图~~
 - [ ] 自定义引用类型
 
+### 部分功能预览
+
+![聚焦](https://github.com/etchnight/siyuanPlugin-networkCustom/blob/ea91705ec08b131a479f17dde3845200e49bdc5f/asset/focus.png)
+
 ### 反馈
 
 有问题请在[github issues](https://github.com/etchnight/siyuanPlugin-networkCustom/issues)、[gitee issues](https://gitee.com/dualwind/siyuan-plugin-network-custom/issues)反馈。
