@@ -302,7 +302,9 @@ export class echartsGraph {
     this.tagTreeData = [this.rootNode("tagTree")];
     await this.addNodeToTreeDataAndRefresh(this.treeData, startNodeModel);
     //addBorderGraphData();
+    this.graph.showLoading();
     await this.expandNode(startNodeModel);
+    this.graph.hideLoading();
   }
   private rootNode(series: "tree" | "tagTree") {
     const rootNode: nodeModelTree = {
@@ -467,9 +469,11 @@ export class echartsGraph {
       menu.addItem({
         icon: "",
         label: "展开节点",
-        click: () => {
-          this.expandNode(params.data as nodeModelTree);
+        click: async () => {
           menu.close();
+          this.graph.showLoading();
+          await this.expandNode(params.data as nodeModelTree);
+          this.graph.hideLoading();
         },
       });
     };
@@ -477,9 +481,11 @@ export class echartsGraph {
       menu.addItem({
         icon: "",
         label: "聚焦",
-        click: () => {
-          this.focusNode(params.data as nodeModelTree);
+        click: async () => {
           menu.close();
+          this.graph.showLoading();
+          await this.focusNode(params.data as nodeModelTree);
+          this.graph.hideLoading();
         },
       });
     };
@@ -488,6 +494,7 @@ export class echartsGraph {
         icon: "iconLayoutBottom",
         label: "在笔记中定位节点", //todo 国际化
         click: async () => {
+          menu.close();
           openTab({
             app: this.app,
             doc: {
@@ -495,7 +502,6 @@ export class echartsGraph {
               action: ["cb-get-focus"],
             },
           });
-          menu.close();
         },
       });
     };
@@ -510,6 +516,7 @@ export class echartsGraph {
         icon: "iconLayout",
         label: "在浮动窗口查看节点",
         click: async () => {
+          menu.close();
           this.plugin.addFloatLayer({
             ids: [params.data.id],
             x: panelX,
@@ -526,7 +533,6 @@ export class echartsGraph {
           let ele = currentPanel.element;
           ele = ele.querySelector("[data-type=pin]");
           ele.click();
-          menu.close();
         },
       });
     };
@@ -899,7 +905,6 @@ export class echartsGraph {
     if (node.type == "tag") {
       return;
     }
-    this.graph.showLoading();
     //*初始化
     this.graph.clear();
     this.reInitGraph(this.graph.getWidth(), this.graph.getHeight());
@@ -920,7 +925,7 @@ export class echartsGraph {
         await this.expandTag(child);
       }
       if (brother.id == node.id) {
-        continue;
+        await this.expandChildren(brother.id);
       }
       await this.expandRefOrDef(brother, "ref");
       await this.expandRefOrDef(brother, "def");
@@ -1027,7 +1032,6 @@ export class echartsGraph {
     graphSeries.label = treeSeries.label;
     graphSeries.emphasis.label = treeSeries.emphasis.label;
     this.graph.setOption(option);
-    this.graph.hideLoading();
   }
   public async expandNode(node: nodeModelTree) {
     try {
@@ -1038,7 +1042,6 @@ export class echartsGraph {
     }
   }
   private async expandNodeTry(node: nodeModelTree) {
-    this.graph.showLoading();
     this.devConsole(console.time, "expandNode");
     let originBlock = await getBlockById(node.id);
     this.devConsole(console.timeLog, "expandNode", "originBlock");
@@ -1066,7 +1069,6 @@ export class echartsGraph {
 
     this.reComputePosition();
     this.devConsole(console.timeEnd, "expandNode");
-    this.graph.hideLoading();
   }
   private async expandChildren(nodeId: BlockId) {
     const childrenBlocks = await getChildrenBlocks(nodeId);
