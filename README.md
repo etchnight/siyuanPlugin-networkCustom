@@ -18,6 +18,7 @@
 - [x] 悬浮显示块详细信息(v1.1)
 - [x] 显示标签树(v2.0)
 - [x] 鼠标指向时高亮边(v2.2)
+- [x] 显示链接类型(v2.3)，目前是通过识别引用锚文本上的备注实现
 - [ ] 不同颜色区分块类型
 - [ ] 显示引用类型
 
@@ -36,6 +37,7 @@
 
 ### 部分功能预览
 
+#### 聚焦
 ![聚焦](https://github.com/etchnight/siyuanPlugin-networkCustom/raw/main/asset/focus.png)
 
 ### 反馈

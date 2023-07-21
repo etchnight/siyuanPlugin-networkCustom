@@ -18,6 +18,7 @@ By default, a new dock appears on the right, click it, pay attention to put the 
 - [x] Display block details(hover)(v1.1)
 - [x] Displays the label tree(v2.0)
 - [x] Highlight edge when mouse over (v2.2)
+- [x] Display link type (v2.3), currently achieved by recognizing memos on the reference anchor-text
 - [ ] Use different colors distinguish different block types
 - [ ] Displays the reference type
 

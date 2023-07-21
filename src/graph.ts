@@ -1,4 +1,5 @@
 import {
+  getAnchorFromMarkdown,
   getBlockById,
   getChildrenBlocks,
   getDefBlocks,
@@ -6,6 +7,7 @@ import {
   getParentBlock,
   getRefBlocks,
   pushErrMsg,
+  sql,
   typeAbbrMap,
 } from "../../siyuanPlugin-common/siyuan-api";
 import {
@@ -147,6 +149,15 @@ export class echartsGraph {
       label: {
         show: false,
         position: "bottom",
+      },
+      edgeLabel: {
+        show: true,
+        formatter: (params: labelformatterParams) => {
+          return params.data.labelName;
+        },
+        textBorderColor: "#111f2c",
+        textBorderWidth: 3,
+        color: "#F0FFFF",
       },
       edgeSymbol: ["none", "arrow"],
       itemStyle: { opacity: 0 },
@@ -691,12 +702,25 @@ export class echartsGraph {
     graphNode.fixed = true;
     return graphNode;
   }
-  private buildEdge(source: nodeModelGraph, target: nodeModelGraph) {
+  private async buildEdge(source: nodeModelGraph, target: nodeModelGraph) {
+    const memoBlocks = await sql(
+      `SELECT * FROM "spans" WHERE type='textmark block-ref inline-memo' 
+      AND block_id='${source.id}'`
+    );
+    let labelName = "";
+    if (memoBlocks.length > 0) {
+      const memoBlock = memoBlocks[0] as Block;
+      const anchorArray = getAnchorFromMarkdown(memoBlock.markdown);
+      if (anchorArray.length > 0) {
+        const anchor = anchorArray[0];
+        labelName = memoBlock.content.replace(anchor, "");
+      }
+    }
     let link: edgeModel = {
       id: `${source.name}-${target.name}`,
       source: source.name,
       target: target.name,
-      labelName: "", //todo
+      labelName: labelName,
     };
     return link;
   }
@@ -849,7 +873,7 @@ export class echartsGraph {
     }
     return node;
   }
-  private addNodesAndEdges(
+  private async addNodesAndEdges(
     otherNodes: nodeModelTree[],
     origin: nodeModelTree,
     edgeType: edgeType
@@ -864,9 +888,9 @@ export class echartsGraph {
       this.addNodeToGraphData(other);
       let edge: edgeModel;
       if (edgeType == "ref") {
-        edge = this.buildEdge(originNode, other);
+        edge = await this.buildEdge(originNode, other);
       } else {
-        edge = this.buildEdge(other, originNode);
+        edge = await this.buildEdge(other, originNode);
       }
       if (!edge.target && !edge.source) {
         continue;
