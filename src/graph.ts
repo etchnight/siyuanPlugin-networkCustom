@@ -708,7 +708,7 @@ export class echartsGraph {
       AND block_id='${source.id}'`
     );
     let labelName = "";
-    if (memoBlocks.length > 0) {
+    if (memoBlocks && memoBlocks.length > 0) {
       const memoBlock = memoBlocks[0] as Block;
       const anchorArray = getAnchorFromMarkdown(memoBlock.markdown);
       if (anchorArray.length > 0) {
