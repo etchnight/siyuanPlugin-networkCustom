@@ -18,9 +18,8 @@ By default, a new dock appears on the right, click it, pay attention to put the 
 - [x] Display block details(hover)(v1.1)
 - [x] Displays the label tree(v2.0)
 - [x] Highlight edge when mouse over (v2.2)
-- [x] Display link type (v2.3), currently achieved by recognizing memos on the reference anchor-text
-- [ ] Use different colors distinguish different block types
-- [ ] Displays the reference type
+- [x] Display reference type (v2.3), currently achieved by recognizing memos on the reference anchor-text
+~~- [ ] Use different colors distinguish different block types~~
 
 #### Right-click Menu
 
@@ -28,12 +27,9 @@ By default, a new dock appears on the right, click it, pay attention to put the 
 - [x] Locate nodes in notes (document tab)(v1.1)
 - [x] View the node in a floating pannel(v1.1)
 - [x] Focus Node(unfocus button is on the toolbar)(v2.1)
-- [ ] Delete the node
+~~- [ ] Delete the node~~
 
-#### Advanced Features
 
-~~- [ ] Switch to force-directed layout~~
-- [ ] Setting how to display reference type
 
 ### Feedback
 
