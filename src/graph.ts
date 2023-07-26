@@ -63,7 +63,7 @@ export class echartsGraph {
   public tagTreeData: nodeModelTree[] = [];
   private app: App;
   private plugin: Plugin;
-  private debug: boolean = false;
+  private debug: boolean = true;
   public isFocusing: boolean = false;
   //private rootBlock: Block;
   private grid: { left: number; width: number; top: number; height: number };
@@ -1154,7 +1154,6 @@ export class echartsGraph {
     //*tags
     await this.expandTag(node);
     this.devConsole(console.timeLog, "expandNode", "tags");
-
     this.reComputePosition();
     this.devConsole(console.timeEnd, "expandNode");
   }
@@ -1175,7 +1174,7 @@ export class echartsGraph {
       await this.addNodeToTreeDataAndRefresh(this.treeData, node);
       refNodes.push(node);
     }
-    this.addNodesAndEdges(refNodes, node, type);
+    await this.addNodesAndEdges(refNodes, node, type);
   }
   private async expandTag(node: nodeModelTree) {
     const tagNodes = this.buildTagNodes(node.tag);
@@ -1186,7 +1185,7 @@ export class echartsGraph {
       }
       tagLeaves.push(group[group.length - 1]);
     }
-    this.addNodesAndEdges(tagLeaves, node, "ref");
+    await this.addNodesAndEdges(tagLeaves, node, "ref");
   }
 }
 
