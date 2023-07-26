@@ -16,7 +16,7 @@ import {
   BlockType,
   Window_siyuan,
 } from "../../siyuanPlugin-common/types/siyuan-api";
-import { Plugin, Menu, openTab, App } from "siyuan";
+import { Plugin, Menu, openTab, App, Setting } from "siyuan";
 //*↓↓↓↓↓eacharts↓↓↓↓↓
 import * as echarts from "echarts/core";
 import { CanvasRenderer } from "echarts/renderers";
@@ -53,6 +53,7 @@ type ECOption = echarts.ComposeOption<
   | ToolboxComponentOption
 >;
 //*↑↑↑↑↑eacharts↑↑↑↑↑
+const STORAGE_NAME = "TreeAndGraph-config";
 
 export class echartsGraph {
   private i18n: i18nType;
@@ -63,10 +64,12 @@ export class echartsGraph {
   public tagTreeData: nodeModelTree[] = [];
   private app: App;
   private plugin: Plugin;
-  private debug: boolean = true;
+  private debug: boolean = false;
   public isFocusing: boolean = false;
   //private rootBlock: Block;
   private grid: { left: number; width: number; top: number; height: number };
+  private config: { cardMode: boolean };
+  private setting: Setting;
   constructor(i18n: i18nType, app: App, plugin: Plugin) {
     this.i18n = i18n;
     this.app = app;
@@ -84,7 +87,7 @@ export class echartsGraph {
       },
     });
   }
-  public initGraph(
+  public async initGraph(
     container: HTMLElement,
     widthNum: number,
     heightNum: number
@@ -115,6 +118,8 @@ export class echartsGraph {
       this.onMouseout();
     });
     //graph.on("mouseover", onMouseOver);
+    this.config = await this.plugin.loadData(STORAGE_NAME);
+    this.initSetting();
   }
   /**
    * 初始化图表
@@ -202,10 +207,17 @@ export class echartsGraph {
             show: true,
             title: "取消聚焦", //todo 国际化
             icon: "path://M214.864,440.317l69.471-41.742c20.83-12.516,47.862-5.776,60.377,15.053,12.516,20.83,5.776,47.862-15.053,60.377L137.653,589.374,22.285,397.369c-12.516-20.83-5.776-47.862,15.053-60.378,20.83-12.515,47.862-5.775,60.377,15.054l34.478,57.38c36.81-123.472,126.622-227,249.697-279.243,223.634-94.927,481.893,9.459,576.842,233.144,94.948,223.685-9.365,481.973-232.998,576.9-161.485,68.546-346.059,34.258-472.152-83.359-17.77-16.575-18.738-44.418-2.162-62.188,16.575-17.77,44.418-18.738,62.187-2.163,100.9,94.117,248.546,121.546,377.742,66.705C870.24,783.287,953.688,576.663,877.727,397.71c-75.96-178.953-282.562-262.459-461.452-186.524-100.372,42.605-173.066,127.8-201.411,229.131z",
-            //icon: "path://M432.45,595.444c0,2.177-4.661,6.82-11.305,6.82c-6.475,0-11.306-4.567-11.306-6.82s4.852-6.812,11.306-6.812C427.841,588.632,432.452,593.191,432.45,595.444L432.45,595.444z M421.155,589.876c-3.009,0-5.448,2.495-5.448,5.572s2.439,5.572,5.448,5.572c3.01,0,5.449-2.495,5.449-5.572C426.604,592.371,424.165,589.876,421.155,589.876L421.155,589.876z M421.146,591.891c-1.916,0-3.47,1.589-3.47,3.549c0,1.959,1.554,3.548,3.47,3.548s3.469-1.589,3.469-3.548C424.614,593.479,423.062,591.891,421.146,591.891L421.146,591.891zM421.146,591.891",
             onclick: () => {
               this.reInitGraph();
               this.reComputePosition();
+            },
+          },
+          myTool2: {
+            show: true,
+            title: "设置", //todo 国际化
+            icon: "path://M512.25928,704c-108.8,0-192-83.2-192-192s83.2-192,192-192,192,83.2,192,192-83.2,192-192,192z,m0-320c-70.4,0-128,57.6-128,128s57.6,128,128,128,128-57.6,128-128-57.6-128-128-128z M640.25928,1024H384.25928c-19.2,0-32-12.8-32-32v-121.6c-25.6-12.8-51.2-25.6-70.4-38.4l-102.4,64c-12.8,6.4-32,6.4-44.8-12.8l-128-224C-6.14072,640,0.25928,620.8,19.45928,614.4l102.4-64v-76.8l-102.4-64C0.25928,403.2-6.14072,384,6.65928,364.8l128-224c6.4-12.8,25.6-19.2,44.8-6.4l102.4,64c19.2-12.8,44.8-32,70.4-38.4V32c0-19.2,12.8-32,32-32h256c19.2,0,32,12.8,32,32v121.6c25.6,12.8,51.2,25.6,70.4,38.4l102.4-64c12.8-6.4,32-6.4,44.8,12.8l128,224c12.8,19.2,6.4,38.4-12.8,44.8l-102.4,64v76.8l102.4,64c12.8,6.4,19.2,25.6,12.8,44.8l-128,224c-6.4,12.8-25.6,19.2-44.8,12.8l-102.4-64c-19.2,12.8-44.8,32-70.4,38.4V992c0,19.2-12.8,32-32,32z,m-224-64h192v-108.8c0-12.8,6.4-25.6,19.2-32,32-12.8,64-32,89.6-51.2,12.8-6.4,25.6-6.4,38.4,0l96,57.6,96-166.4-96-57.6c-12.8-12.8-19.2-25.6-12.8-38.4,0-19.2,6.4-32,6.4-51.2s0-32-6.4-51.2c0-12.8,6.4-25.6,12.8-32l96-57.6-96-166.4-96,57.6c-12.8,6.4-25.6,6.4-38.4,0-25.6-19.2-57.6-38.4-89.6-51.2-12.8-12.8-19.2-25.6-19.2-38.4V64H416.25928v108.8c0,12.8-6.4,25.6-19.2,32-32,12.8-64,32-89.6,51.2-12.8,6.4-25.6,6.4-38.4,0l-96-51.2-96,166.4,96,57.6c12.8,6.4,19.2,19.2,12.8,32,0,19.2-6.4,32-6.4,51.2,0,19.2,0,32,6.4,51.2,6.4,12.8,0,25.6-12.8,32l-96,57.6,96,166.4,96-57.6c12.8-6.4,25.6-6.4,38.4,0,25.6,19.2,57.6,38.4,89.6,51.2,12.8,6.4,19.2,19.2,19.2,32V960z",
+            onclick: () => {
+              this.setting.open(this.i18n.pluginName);
             },
           },
         },
@@ -388,6 +400,41 @@ export class echartsGraph {
       }
     });
     return graphOption;
+  }
+  private async initSetting() {
+    //const labelElement = document.createElement("label");
+    const inputEle = document.createElement("input");
+    this.setting = new Setting({
+      confirmCallback: () => {
+        if (inputEle.checked && !this.config.cardMode) {
+          this.graphData.forEach((node) => {
+            node.labelName = this.getAncestorLabel(node);
+          });
+          this.treeData.forEach((node) => {
+            if (!this.isCardNode(node.type)) {
+              node.collapsed = true;
+            }
+          });
+          this.refreshGraph(["blockTree", "blockGraph"]);
+        }
+        this.config = { cardMode: inputEle.checked };
+        this.plugin.saveData(STORAGE_NAME, this.config);
+      },
+    });
+    this.setting.addItem({
+      title: "仅显示标题块、超级块（实验性功能）",
+      createActionElement: () => {
+        //const spanEle = document.createElement("span");
+        //spanEle.innerText = "仅显示标题块、超级块（实验性功能）";
+        //labelElement.appendChild(spanEle);
+        //const inputEle = document.createElement("input");
+        //inputEle.setAttribute("data-type", "heading");
+        inputEle.setAttribute("type", "checkbox");
+        inputEle.classList.add("b3-switch");
+        //labelElement.appendChild(inputEle);
+        return inputEle;
+      },
+    });
   }
   /**
    * 注意，只刷新数据，其他设置无法改变
@@ -658,8 +705,28 @@ export class echartsGraph {
     node.parent_id = parentBlock ? parentBlock.id : "root";
     return node;
   }
+  private isCardNode(type: BlockType | "tag") {
+    switch (type) {
+      case "d":
+      case "h":
+      case "s":
+      case "box":
+        return true;
+      default:
+        return false;
+    }
+  }
   private buildNodeWithoutParent(block: Block) {
     let labelName = this.buildNodeLabel(block);
+    let collapsed = false;
+    //todo 应为其父级
+    if (this.config.cardMode) {
+      if (this.isCardNode(block.type)) {
+        collapsed = false;
+      } else {
+        collapsed = true;
+      }
+    }
     const node: nodeModelTree = {
       id: block.id,
       type: block.type,
@@ -671,6 +738,7 @@ export class echartsGraph {
       tag: block.tag,
       content: block.content,
       value: [0, 0],
+      collapsed: collapsed,
     };
     return node;
   }
@@ -698,9 +766,21 @@ export class echartsGraph {
   private buildGraphNode(node: nodeModelTree) {
     let graphNode: nodeModelGraph = structuredClone(node);
     //graphNode.labelName = node.name;
+    if (this.config.cardMode) {
+      graphNode.labelName = this.getAncestorLabel(node);
+    }
     graphNode.name = node.id;
     graphNode.fixed = true;
     return graphNode;
+  }
+
+  private getAncestorLabel(node: nodeModelTree | nodeModelGraph): string {
+    if (this.isCardNode(node.type)) {
+      return node.labelName;
+    } else {
+      const parent = this.findTreeDataById(this.treeData, node.parent_id);
+      return this.getAncestorLabel(parent);
+    }
   }
   private async buildEdge(source: nodeModelGraph, target: nodeModelGraph) {
     const memoBlocks = await sql(
@@ -1071,12 +1151,14 @@ export class echartsGraph {
     graphSeries.itemStyle.opacity = 1;
     this.reComputePosition();
     //const graphDataClone=structuredClone(this.graphData)
+    //*在树中的节点
     let newGraphData1 = this.graphData.filter((item) => {
       return item.value[0] && item.value[1];
     });
     newGraphData1.forEach((item) => {
       item.isHideLabel = true;
     });
+    //*不在树中的节点
     let newGraphData2: nodeModelGraph[] = this.graphData.filter((item) => {
       if (item.value[0] && item.value[1]) {
         return false;
@@ -1125,6 +1207,7 @@ export class echartsGraph {
     try {
       await this.expandNodeTry(node);
     } catch (e) {
+      console.error(e);
       pushErrMsg("TreeAndGraph插件扩展节点出错，请查看控制台");
       this.graph.hideLoading();
     }
@@ -1234,6 +1317,7 @@ interface labelformatterParams extends CallbackDataParams {
 export type i18nType = {
   prefix: string;
   startNodeError: string;
+  pluginName: string;
 };
 declare global {
   interface Window {

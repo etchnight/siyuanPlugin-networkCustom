@@ -1,11 +1,12 @@
-import { Plugin, getFrontend, getBackend } from "siyuan";
+import { Plugin, getFrontend, getBackend, Setting } from "siyuan";
 import "./index.scss";
 import { echartsGraph, i18nType } from "./graph";
-const STORAGE_NAME = "menu-config";
+const STORAGE_NAME = "TreeAndGraph-config";
 const DOCK_TYPE = "dock_tab";
 export default class networkCustom extends Plugin {
   //private isMobile: boolean;
   onload() {
+    this.data[STORAGE_NAME] = { cardMode: false };
     // 图标
     if (!document.getElementById("icon_networkCustom")) {
       this.addIcons(`
@@ -77,7 +78,7 @@ export default class networkCustom extends Plugin {
           } else {
             //*改变大小
             eGraph.resizeGraph(widthNum, heightNum);
-            if(!eGraph.isFocusing){
+            if (!eGraph.isFocusing) {
               eGraph.reInitGraph(widthNum, heightNum);
               eGraph.reComputePosition();
             }
@@ -90,7 +91,7 @@ export default class networkCustom extends Plugin {
         console.log("destroy dock:", DOCK_TYPE);
       },
     });
-    console.log(this.i18n.prefix, this.i18n.helloPlugin);
+    //console.log(this.i18n.prefix, this.i18n.helloPlugin);
   }
 
   onLayoutReady() {
