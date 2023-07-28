@@ -272,7 +272,8 @@ export class echartsGraph {
         textBorderWidth: 2,
         width: labelWidth,
         overflow: "truncate",
-        formatter: seriesId == "blockTree" ? labelFormatter : undefined,
+        //formatter: seriesId == "blockTree" ? labelFormatter : undefined,
+        formatter: seriesId == "blockTree" ? showLabelName : undefined,
       },
       /*
       labelLayout: {
@@ -284,7 +285,7 @@ export class echartsGraph {
       },*/
       leaves: {
         label: {
-          formatter: showLabelName,
+          //formatter: showLabelName,
         },
       },
       emphasis: {
@@ -349,6 +350,7 @@ export class echartsGraph {
       tag: "",
       content: "",
       value: [0, 0],
+      depth: 0,
     };
     return rootNode;
   }
@@ -638,7 +640,6 @@ export class echartsGraph {
   /**
    * @deprecated
    */
-  //@ts-ignore
   private onTreeroam(params: ECElementEventParams) {
     /*//?不生效
     this.graph.dispatchAction({
@@ -828,14 +829,14 @@ export class echartsGraph {
     return tagsSplited;
   }
   /**
-   * 其实并非克隆，因为原值改变了
+   * 其实并非克隆，因为原值改变了，cloneTo中存在而node中不存在的值将不会被清空
    * @returns
    */
   private cloneNodeExceptChildren(
     node: nodeModelTree,
     nodeCloneTo: nodeModelTree
   ) {
-    for (let key of Object.keys(nodeCloneTo)) {
+    for (let key of Object.keys(node)) {
       if (key == "children") {
         continue;
       }
@@ -852,18 +853,33 @@ export class echartsGraph {
     treeData: nodeModelTree[],
     node: nodeModelTree
   ) {
-    //console.log("添加节点到treeData", node.labelName);
+    const computeDepth = (node: nodeModelTree) => {
+      //*计算depth,更改label-position
+      node.label = { position: node.depth % 2 ? "top" : "bottom" };
+      let depthNode = node.children[0] ?? null;
+      let depthParent = node;
+      let depthCount = 0;
+      while (depthNode && depthCount < 100) {
+        depthNode.depth = depthParent.depth + 1;
+        depthNode.label = { position: depthNode.depth % 2 ? "top" : "bottom" };
+        depthParent = depthNode;
+        depthNode = depthParent.children[0] ?? null;
+        depthCount++;
+      }
+    };
     //*node为box
     if (node.type == "box") {
       //&& node.id
-      //console.log(treeData);
       let added = treeData[0].children.find((child) => {
         return child.id == node.id;
       });
+      node.depth = 1;
       if (!added) {
         treeData[0].children.push(node);
+        computeDepth(node);
         return;
       } else {
+        //*更新节点
         this.cloneNodeExceptChildren(node, added);
       }
       return;
@@ -876,9 +892,12 @@ export class echartsGraph {
       let added = parent.children.find((child) => {
         return child.id == node.id;
       });
+      node.depth = parent.depth + 1;
       if (!added) {
         parent.children.push(node);
+        computeDepth(node);
       } else {
+        //*更新节点
         this.cloneNodeExceptChildren(node, added);
       }
       return;
@@ -1279,8 +1298,9 @@ export interface nodeModelTree extends TreeSeriesNodeItemOption {
   box: string;
   tag: string;
   content: string;
+  depth?: number;
   //?不可行，会无限clone parent: nodeModel;
-  //以下为兼容nodeModelGraph
+  //*以下为兼容nodeModelGraph
   value: [number, number];
   symbol?: any;
   symbolSize?: any;
