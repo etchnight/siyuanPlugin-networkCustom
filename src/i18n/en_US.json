@@ -13,5 +13,14 @@
     "makesure": "Before using this template, please read the <a href=\"https://github.com/siyuan-note/plugin-sample\">offical sample</a>, make sure that you've known about the pipeline for plugin developing."
   },
   "startNodeError": "[networkCustom]Initialization failed,can not find the block where the cursor is located,place the cursor in a block and then open the panel.",
-  "pluginName": "TreeAndGraph"
+  "pluginName": "TreeAndGraph",
+  "setting": {
+    "showParentName": "When focused, the reference node label displays its parent (title) name (if the node has a name, it still shows the name)"
+  },
+  "menu": {
+    "extendNode": "Extend node",
+    "focusNode": "Focus Node",
+    "locateNode": "View node in document",
+    "floatingPannel": "View node in a floating pannel"
+  }
 }

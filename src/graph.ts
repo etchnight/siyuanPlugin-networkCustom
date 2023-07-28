@@ -402,7 +402,6 @@ export class echartsGraph {
     return graphOption;
   }
   private async initSetting() {
-    //const labelElement = document.createElement("label");
     const inputEle = document.createElement("input");
     this.setting = new Setting({
       confirmCallback: () => {
@@ -422,16 +421,10 @@ export class echartsGraph {
       },
     });
     this.setting.addItem({
-      title: "仅显示标题块、超级块（实验性功能）",
+      title: this.i18n.setting.showParentName,
       createActionElement: () => {
-        //const spanEle = document.createElement("span");
-        //spanEle.innerText = "仅显示标题块、超级块（实验性功能）";
-        //labelElement.appendChild(spanEle);
-        //const inputEle = document.createElement("input");
-        //inputEle.setAttribute("data-type", "heading");
         inputEle.setAttribute("type", "checkbox");
         inputEle.classList.add("b3-switch");
-        //labelElement.appendChild(inputEle);
         return inputEle;
       },
     });
@@ -533,7 +526,7 @@ export class echartsGraph {
     const expand = () => {
       menu.addItem({
         icon: "",
-        label: "展开节点",
+        label: this.i18n.menu.extendNode,
         click: async () => {
           menu.close();
           this.graph.showLoading();
@@ -545,7 +538,7 @@ export class echartsGraph {
     const focus = () => {
       menu.addItem({
         icon: "",
-        label: "聚焦",
+        label: this.i18n.menu.focusNode,
         click: async () => {
           menu.close();
           this.graph.showLoading();
@@ -557,7 +550,7 @@ export class echartsGraph {
     const editInTab = () => {
       menu.addItem({
         icon: "iconLayoutBottom",
-        label: "在笔记中定位节点", //todo 国际化
+        label: this.i18n.menu.locateNode,
         click: async () => {
           menu.close();
           openTab({
@@ -579,7 +572,7 @@ export class echartsGraph {
       }
       menu.addItem({
         icon: "iconLayout",
-        label: "在浮动窗口查看节点",
+        label: this.i18n.menu.floatingPannel,
         click: async () => {
           menu.close();
           this.plugin.addFloatLayer({
@@ -1315,9 +1308,31 @@ interface labelformatterParams extends CallbackDataParams {
   data: nodeModelTree | edgeModel | nodeModelGraph;
 }
 export type i18nType = {
-  prefix: string;
+  addTopBarIcon: string;
+  cancel: string;
+  save: string;
+  byeMenu: string;
+  helloPlugin: string;
+  byePlugin: string;
+  showDialog: string;
+  removedData: string;
+  confirmRemove: string;
+  name: string;
+  hello: {
+    makesure: string;
+  };
   startNodeError: string;
+  prefix: string;
   pluginName: string;
+  setting: {
+    showParentName: string;
+  };
+  menu: {
+    extendNode: string;
+    focusNode: string;
+    locateNode: string;
+    floatingPannel: string;
+  };
 };
 declare global {
   interface Window {
