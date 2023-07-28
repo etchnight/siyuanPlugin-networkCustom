@@ -23,5 +23,9 @@
     "focusNode": "聚焦",
     "locateNode": "在笔记中定位节点",
     "floatingPannel": "在浮动窗口查看节点"
+  },
+  "toolbox":{
+    "myTool1":"取消聚焦",
+    "myTool2":"设置"
   }
 }

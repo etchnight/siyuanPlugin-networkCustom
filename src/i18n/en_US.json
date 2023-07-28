@@ -22,5 +22,9 @@
     "focusNode": "Focus Node",
     "locateNode": "View node in document",
     "floatingPannel": "View node in a floating pannel"
+  },
+  "toolbox": {
+    "myTool1": "Exit Focus Node Mode",
+    "myTool2": "Setting"
   }
 }
