@@ -813,7 +813,7 @@ export class echartsGraph {
     const tags = tagString.split(" ");
     let tagsSplited: nodeModelTree[][] = [];
     for (let tag of tags) {
-      tag = tag.slice(1, -1);
+      tag = tag.slice(1, -1); //*去除#号
       let tagsGroup = tag.split("/");
       let tagObjs: nodeModelTree[] = [];
       for (let i = 0; i < tagsGroup.length; i++) {
@@ -1187,7 +1187,7 @@ export class echartsGraph {
     }
     graphSeries.data = newGraphData2.concat(newGraphData1);
     graphSeries.links = this.graphLinks;
-    graphSeries.lineStyle.curveness = 0.5;
+    graphSeries.lineStyle.curveness = 0.2;
     //*统一树和图配置
     graphSeries.label = treeSeries.label;
     graphSeries.emphasis.label = treeSeries.emphasis.label;
