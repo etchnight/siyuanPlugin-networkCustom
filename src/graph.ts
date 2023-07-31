@@ -700,12 +700,16 @@ export class echartsGraph {
     node.parent_id = parentBlock ? parentBlock.id : "root";
     return node;
   }
+  /**
+   * 显示标签的node
+   */
   private isCardNode(type: BlockType | "tag") {
     switch (type) {
       case "d":
       case "h":
       case "s":
       case "box":
+      case "tag":
         return true;
       default:
         return false;
@@ -760,6 +764,9 @@ export class echartsGraph {
   }
   private buildGraphNode(node: nodeModelTree) {
     let graphNode: nodeModelGraph = structuredClone(node);
+    if (graphNode.label?.position) {
+      graphNode.label.position = "top";
+    }
     //graphNode.labelName = node.name;
     if (this.config.cardMode) {
       graphNode.labelName = this.getAncestorLabel(node);
@@ -921,36 +928,6 @@ export class echartsGraph {
     return;
   }
 
-  private findGraphLingLinks(graphLinks: edgeModel[], nodeId: BlockId) {
-    return graphLinks.filter((link) => {
-      return link.source == nodeId || link.target == nodeId;
-    });
-  }
-  /**
-   * 查找链接的node
-   * @param graphData
-   * @param node
-   * @returns
-   */
-  private findGraphLinkingNodes(
-    graphData: nodeModelGraph[],
-    graphLinks: edgeModel[],
-    nodeId: BlockId
-  ): nodeModelGraph[] {
-    let linkNodeIds = [];
-    for (let link of graphLinks) {
-      if (link.source == nodeId) {
-        linkNodeIds.push(link.target);
-      } else if (link.target == nodeId) {
-        linkNodeIds.push(link.source);
-      }
-    }
-    return graphData.filter((item) => {
-      return linkNodeIds.find((id) => {
-        return id == item.id;
-      });
-    });
-  }
   private findTreeDataById(children: nodeModelTree[], id: string) {
     let node: nodeModelTree;
     for (let child of children) {

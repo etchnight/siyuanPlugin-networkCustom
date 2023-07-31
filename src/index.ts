@@ -1,4 +1,4 @@
-import { Plugin, getFrontend, getBackend, Setting } from "siyuan";
+import { Plugin } from "siyuan";
 import "./index.scss";
 import { echartsGraph, i18nType } from "./graph";
 const STORAGE_NAME = "TreeAndGraph-config";
@@ -96,7 +96,7 @@ export default class networkCustom extends Plugin {
 
   onLayoutReady() {
     this.loadData(STORAGE_NAME);
-    console.log(`frontend: ${getFrontend()}; backend: ${getBackend()}`);
+    //console.log(`frontend: ${getFrontend()}; backend: ${getBackend()}`);
   }
 
   onunload() {
