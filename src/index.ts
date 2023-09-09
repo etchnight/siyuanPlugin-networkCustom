@@ -5,7 +5,10 @@ const STORAGE_NAME = "TreeAndGraph-config";
 const DOCK_TYPE = "dock_tab";
 export default class networkCustom extends Plugin {
   //private isMobile: boolean;
+  private onClickEditorcontentThis = this.onClickEditorcontent.bind(this);
+  private eGraph: echartsGraph;
   onload() {
+    this.eventBus.on("click-editorcontent", this.onClickEditorcontentThis);
     this.data[STORAGE_NAME] = { cardMode: false };
     // 图标
     if (!document.getElementById("icon_networkCustom")) {
@@ -16,9 +19,10 @@ export default class networkCustom extends Plugin {
       </symbol>
       `);
     }
-    const eGraph = new echartsGraph(this.i18n as i18nType, this.app, this);
+    this.eGraph = new echartsGraph(this.i18n as i18nType, this.app, this);
     let lastTabWidth = 0;
     const i18n = this.i18n;
+    const eGraph = this.eGraph;
     //@ts-ignore
     const dock = this.addDock({
       config: {
@@ -100,6 +104,16 @@ export default class networkCustom extends Plugin {
   }
 
   onunload() {
-    console.log(this.i18n.prefix, this.i18n.byePlugin);
+    this.eventBus.off("click-editorcontent", this.onClickEditorcontentThis);
+    //console.log(this.i18n.prefix, this.i18n.byePlugin);
+  }
+  private onClickEditorcontent({ detail }) {
+    let blockEle = detail.event.target as HTMLElement;
+    let blockId = blockEle.getAttribute("data-node-id");
+    while (!blockId && blockEle) {
+      blockId = blockEle.getAttribute("data-node-id");
+      blockEle = blockEle.parentElement;
+    }
+    this.eGraph.startBlockId = blockId;
   }
 }

@@ -2,10 +2,10 @@
   "name": "siyuanPligin-TreeAndGraph",
   "author": "dualwind",
   "url": "https://github.com/etchnight/siyuanPlugin-networkCustom",
-  "version": "2.2.0",
+  "version": "2.2.1",
   "minAppVersion": "2.9.0",
-  "backends": ["windows", "linux", "darwin"],
-  "frontends": ["desktop"],
+  "backends": ["all"],
+  "frontends": ["desktop", "desktop-window", "browser-desktop"],
   "displayName": {
     "en_US": "TreeAndGraph",
     "zh_CN": "树状关系图"
