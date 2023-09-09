@@ -1,12 +1,11 @@
-import { Plugin } from "siyuan";
-import "./index.scss";
+import { IModel, IPluginDockTab, Plugin } from "siyuan";
 import { echartsGraph, i18nType } from "./graph";
 const STORAGE_NAME = "TreeAndGraph-config";
-const DOCK_TYPE = "dock_tab";
 export default class networkCustom extends Plugin {
   //private isMobile: boolean;
   private onClickEditorcontentThis = this.onClickEditorcontent.bind(this);
   private eGraph: echartsGraph;
+  private blockId: string;
   onload() {
     this.eventBus.on("click-editorcontent", this.onClickEditorcontentThis);
     this.data[STORAGE_NAME] = { cardMode: false };
@@ -23,18 +22,16 @@ export default class networkCustom extends Plugin {
     let lastTabWidth = 0;
     const i18n = this.i18n;
     const eGraph = this.eGraph;
-    //@ts-ignore
-    const dock = this.addDock({
+    const pluginThis = this;
+    this.addDock({
       config: {
         position: "RightTop",
         size: { width: 400, height: 600 },
         icon: "icon_networkCustom",
         title: i18n.pluginName,
       },
-      data: {
-        text: "",
-      },
-      type: DOCK_TYPE,
+      data: {},
+      type: "dock_tab",
       init() {
         this.element.innerHTML =
           //html
@@ -78,7 +75,7 @@ export default class networkCustom extends Plugin {
             //*重绘
             eGraph.resizeGraph(widthNum, heightNum);
             eGraph.reInitGraph(widthNum, heightNum);
-            await eGraph.reInitData();
+            await eGraph.reInitData(pluginThis.blockId);
           } else {
             //*改变大小
             eGraph.resizeGraph(widthNum, heightNum);
@@ -92,7 +89,6 @@ export default class networkCustom extends Plugin {
       },
       destroy() {
         eGraph.graph.dispose();
-        console.log("destroy dock:", DOCK_TYPE);
       },
     });
     //console.log(this.i18n.prefix, this.i18n.helloPlugin);
@@ -114,6 +110,6 @@ export default class networkCustom extends Plugin {
       blockId = blockEle.getAttribute("data-node-id");
       blockEle = blockEle.parentElement;
     }
-    this.eGraph.startBlockId = blockId;
+    this.blockId = blockId;
   }
 }

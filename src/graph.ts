@@ -3,7 +3,6 @@ import {
   getBlockById,
   getChildrenBlocks,
   getDefBlocks,
-  getFocusNodeId,
   getParentBlock,
   getRefBlocks,
   pushErrMsg,
@@ -70,7 +69,6 @@ export class echartsGraph {
   private grid: { left: number; width: number; top: number; height: number };
   private config: { cardMode: boolean };
   private setting: Setting;
-  public startBlockId: string;
   constructor(i18n: i18nType, app: App, plugin: Plugin) {
     this.i18n = i18n;
     this.app = app;
@@ -319,12 +317,11 @@ export class echartsGraph {
     //opt.center = [opt.width / 2, opt.height / 2];
     return opt;
   }
-  public async reInitData() {
+  public async reInitData(startNodeId:string) {
     this.graphData = []; //清空数据
     this.graphLinks = [];
     this.tagTreeData = [];
     //---清空并添加初始节点---
-    const startNodeId = this.startBlockId;
     if (!startNodeId) {
       pushErrMsg(this.i18n.prefix + this.i18n.startNodeError);
       return;
