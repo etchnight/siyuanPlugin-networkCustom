@@ -1,5 +1,6 @@
 import {
   getAnchorFromMarkdown,
+  getBlockBreadcrumb,
   getBlockById,
   getChildrenBlocks,
   getDefBlocks,
@@ -63,7 +64,7 @@ export class echartsGraph {
   public tagTreeData: nodeModelTree[] = [];
   private app: App;
   private plugin: Plugin;
-  private debug: boolean = false;
+  private debug: boolean = true;
   public isFocusing: boolean = false;
   //private rootBlock: Block;
   private grid: { left: number; width: number; top: number; height: number };
@@ -317,7 +318,7 @@ export class echartsGraph {
     //opt.center = [opt.width / 2, opt.height / 2];
     return opt;
   }
-  public async reInitData(startNodeId:string) {
+  public async reInitData(startNodeId: string) {
     this.graphData = []; //清空数据
     this.graphLinks = [];
     this.tagTreeData = [];
@@ -694,8 +695,19 @@ export class echartsGraph {
    */
   private async buildNode(block: Block) {
     let node: nodeModelTree = this.buildNodeWithoutParent(block);
-    const parentBlock = await getParentBlock(block);
-    node.parent_id = parentBlock ? parentBlock.id : "root";
+    if (block.parent_id) {
+      node.parent_id = block.parent_id;
+    } else {
+      let pathList = block.path.split("/");
+      if (pathList.length > 2) {
+        node.parent_id = pathList[pathList.length - 2];
+      }
+    }
+    if (!node.parent_id) {
+      node.parent_id = block.box;
+    }
+    //const parentBlock = await getParentBlock(block);
+    //node.parent_id = parentBlock ? parentBlock.id : "root";
     return node;
   }
   /**
@@ -921,6 +933,16 @@ export class echartsGraph {
     treeData: nodeModelTree[],
     node: nodeModelTree
   ) {
+    /*if (node.type != "d") {
+      let ancestor = await getBlockBreadcrumb(node.id);
+      let parentId = ancestor[0].id;
+      for (let item of ancestor) {
+        if (item.type == "NodeDocument") {
+        } else {
+        }
+      }
+    }*/
+
     await this.addNodeToTreeData(treeData, node);
     this.refreshGraph(["blockGraph", "blockTree", "tagTree"]);
     return;
