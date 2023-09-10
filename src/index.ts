@@ -7,6 +7,7 @@ export default class networkCustom extends Plugin {
   private eGraph: echartsGraph;
   private blockId: string;
   onload() {
+
     this.eventBus.on("click-editorcontent", this.onClickEditorcontentThis);
     this.data[STORAGE_NAME] = { cardMode: false };
     // 图标
@@ -96,6 +97,8 @@ export default class networkCustom extends Plugin {
 
   onLayoutReady() {
     this.loadData(STORAGE_NAME);
+    console.clear()
+    console.log('202309110101')
     //console.log(`frontend: ${getFrontend()}; backend: ${getBackend()}`);
   }
 

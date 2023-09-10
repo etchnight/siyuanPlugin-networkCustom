@@ -1,14 +1,9 @@
 import {
   getAnchorFromMarkdown,
-  getBlockBreadcrumb,
-  getBlockById,
-  getChildrenBlocks,
-  getDefBlocks,
-  getParentBlock,
-  getRefBlocks,
   pushErrMsg,
   sql,
   typeAbbrMap,
+  siyuanQueue,
 } from "../../siyuanPlugin-common/siyuan-api";
 import {
   Block,
@@ -64,11 +59,12 @@ export class echartsGraph {
   public tagTreeData: nodeModelTree[] = [];
   private app: App;
   private plugin: Plugin;
-  private debug: boolean = true;
+  private debug: boolean = false;
   public isFocusing: boolean = false;
+  private siyuanqueue = new siyuanQueue();
   //private rootBlock: Block;
   private grid: { left: number; width: number; top: number; height: number };
-  private config: { cardMode: boolean };
+  private config: { cardMode: boolean }; //聚焦时引用块显示其父级名称
   private setting: Setting;
   constructor(i18n: i18nType, app: App, plugin: Plugin) {
     this.i18n = i18n;
@@ -327,8 +323,8 @@ export class echartsGraph {
       pushErrMsg(this.i18n.prefix + this.i18n.startNodeError);
       return;
     }
-    const startBlock = await getBlockById(startNodeId);
-    const startNodeModel = await this.buildNode(startBlock);
+    const startBlock = await this.siyuanqueue.getBlockById(startNodeId);
+    const startNodeModel = this.buildNode(startBlock);
     this.treeData = [this.rootNode("tree")];
     this.tagTreeData = [this.rootNode("tagTree")];
     await this.addNodeToTreeDataAndRefresh(this.treeData, startNodeModel);
@@ -614,6 +610,9 @@ export class echartsGraph {
     return;
   }
   private onNodeClick(params: ECElementEventParams) {
+    if (this.isFocusing) {
+      return;
+    }
     switch (params.seriesId as seriesID) {
       case "blockTree":
         this.reComputePosition();
@@ -693,7 +692,7 @@ export class echartsGraph {
    * @param block
    * @returns
    */
-  private async buildNode(block: Block) {
+  private buildNode(block: Block) {
     let node: nodeModelTree = this.buildNodeWithoutParent(block);
     if (block.parent_id) {
       node.parent_id = block.parent_id;
@@ -920,8 +919,8 @@ export class echartsGraph {
       return;
     } else {
       //*添加parent
-      const parentBlock = await getParentBlock(node);
-      let parentNode = await this.buildNode(parentBlock);
+      const parentBlock = await this.siyuanqueue.getParentBlock(node);
+      let parentNode = this.buildNode(parentBlock);
       parentNode.children.push(node);
       await this.addNodeToTreeData(treeData, parentNode);
     }
@@ -933,16 +932,7 @@ export class echartsGraph {
     treeData: nodeModelTree[],
     node: nodeModelTree
   ) {
-    /*if (node.type != "d") {
-      let ancestor = await getBlockBreadcrumb(node.id);
-      let parentId = ancestor[0].id;
-      for (let item of ancestor) {
-        if (item.type == "NodeDocument") {
-        } else {
-        }
-      }
-    }*/
-
+    //let breadcrumb = getBlockBreadcrumb(node.id);
     await this.addNodeToTreeData(treeData, node);
     this.refreshGraph(["blockGraph", "blockTree", "tagTree"]);
     return;
@@ -1091,19 +1081,17 @@ export class echartsGraph {
     }
     //*展开节点
     await this.expandNode(parent);
+    parent.collapsed = false;
     this.graph.showLoading();
     for (let brother of parent.children) {
-      for (let child of brother.children) {
-        await this.expandRefOrDef(child, "ref");
-        await this.expandRefOrDef(child, "def");
-        await this.expandTag(child);
+      await this.expandNode(brother);
+      if (brother.id === node.id) {
+        brother.collapsed = false;
+        for (let child of brother.children) {
+          await this.expandNode(child);
+          child.collapsed = true;
+        }
       }
-      if (brother.id == node.id) {
-        await this.expandChildren(brother.id);
-      }
-      await this.expandRefOrDef(brother, "ref");
-      await this.expandRefOrDef(brother, "def");
-      await this.expandTag(brother);
     }
     //*clone
     parent = structuredClone(parent);
@@ -1216,6 +1204,7 @@ export class echartsGraph {
   public async expandNode(node: nodeModelTree) {
     try {
       await this.expandNodeTry(node);
+      node.collapsed = true;
     } catch (e) {
       console.error(e);
       pushErrMsg("TreeAndGraph插件扩展节点出错，请查看控制台");
@@ -1224,13 +1213,13 @@ export class echartsGraph {
   }
   private async expandNodeTry(node: nodeModelTree) {
     this.devConsole(console.time, "expandNode");
-    let originBlock = await getBlockById(node.id);
+    let originBlock = await this.siyuanqueue.getBlockById(node.id);
     this.devConsole(console.timeLog, "expandNode", "originBlock");
     if (!originBlock) {
       return;
     }
     //*更新自身
-    const nodeNew = await this.buildNode(originBlock);
+    const nodeNew = this.buildNode(originBlock);
     await this.addNodeToTreeDataAndRefresh(
       node.type == "tag" ? this.tagTreeData : this.treeData,
       nodeNew
@@ -1251,7 +1240,7 @@ export class echartsGraph {
     this.devConsole(console.timeEnd, "expandNode");
   }
   private async expandChildren(nodeId: BlockId) {
-    const childrenBlocks = await getChildrenBlocks(nodeId);
+    const childrenBlocks = await this.siyuanqueue.getChildrenBlocks(nodeId);
     for (let child of childrenBlocks) {
       let node = this.buildNodeWithoutParent(child);
       node.parent_id = nodeId;
@@ -1260,10 +1249,12 @@ export class echartsGraph {
   }
   private async expandRefOrDef(node: nodeModelTree, type: "ref" | "def") {
     const refBlocks =
-      type == "ref" ? await getRefBlocks(node.id) : await getDefBlocks(node.id);
+      type == "ref"
+        ? await this.siyuanqueue.getRefBlocks(node.id)
+        : await this.siyuanqueue.getDefBlocks(node.id);
     let refNodes: nodeModelTree[] = [];
     for (let child of refBlocks) {
-      let node = await this.buildNode(child);
+      let node = this.buildNode(child);
       await this.addNodeToTreeDataAndRefresh(this.treeData, node);
       refNodes.push(node);
     }
