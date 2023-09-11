@@ -33,7 +33,7 @@
 ### 部分功能预览
 
 #### 聚焦
-![聚焦](https://github.com/etchnight/siyuanPlugin-networkCustom/raw/main/asset/focus.png)
+![聚焦](./asset/focus.png)
 
 ### 反馈
 
