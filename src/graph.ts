@@ -392,15 +392,7 @@ export class echartsGraph {
   private forDevInit(graphOption: ECOption) {
     const labelFormater = (params: { data: nodeModelTree }) => {
       let labelName = params.data.labelName;
-      let [idList, itemLayouts] = this.getTreeNodePositionParams(
-        params.data.type == "tag" ? "tagTree" : "blockTree"
-      );
-      let { x, y } = this.getTreeNodePosition(
-        params.data.type == "tag" ? this.tagTreeData : this.treeData,
-        params.data,
-        idList,
-        itemLayouts
-      );
+      let { x, y } = this.getTreeNodePosition(params.data);
       x = Math.round(x);
       y = Math.round(y);
       //let pixel = graph.convertToPixel({ seriesIndex: 0 }, [x, y]);
@@ -505,13 +497,9 @@ export class echartsGraph {
   private reComputePosition() {
     const treeSeries = this.getSeries(0);
     const tagTreeSeries = this.getSeries(2);
-    const opt = this.graph.getOption() as ECOption;
-    const treeData = opt.series[0].data;
-    const tagTreeData = opt.series[2].data;
     for (let node of this.graphData) {
       node = this.treePosition2GraphValue(
         node.type == "tag" ? tagTreeSeries : treeSeries,
-        node.type == "tag" ? tagTreeData : treeData,
         node
       );
     }
@@ -524,17 +512,10 @@ export class echartsGraph {
    */
   private treePosition2GraphValue(
     treeSeries,
-    treeData: nodeModelTree[],
     node: nodeModelGraph
   ) {
-    const info = treeSeries.getData();
     const option = this.graph.getOption() as ECOption;
-    let { x, y } = this.getTreeNodePosition(
-      treeData,
-      node,
-      info._idList as BlockId[],
-      info._itemLayouts
-    );
+    let { x, y } = this.getTreeNodePosition(node);
     if (!x || !y) {
       node.value = [NaN, NaN];
       return node;
@@ -1040,46 +1021,40 @@ export class echartsGraph {
     //*计算node位置
     const treeSeries =
       node.type == "tag" ? this.getSeries(2) : this.getSeries(0);
-    const treeData = node.type == "tag" ? this.tagTreeData : this.treeData;
-    node = this.treePosition2GraphValue(treeSeries, treeData, node);
+    node = this.treePosition2GraphValue(treeSeries, node);
     if (!nodeAdded) {
       this.graphData.push(node);
     } else {
       nodeAdded = node;
     }
   }
-  /**
-   * 生成getTreeNodePosition的必备参数，防止反复获取
-   * @returns idList,itemLayouts
-   */
-  private getTreeNodePositionParams(
-    treeType: seriesID
-  ): [BlockId[], { x: number; y: number }[]] {
-    let info =
-      treeType == "blockTree" ? this.getDataInfo(0) : this.getDataInfo(2);
-    let idList = info._idList as BlockId[];
-    let itemLayouts = info._itemLayouts as {
-      x: number;
-      y: number;
-    }[];
-    return [idList, itemLayouts];
-  }
 
-  private getTreeNodePosition(
-    treeData: nodeModelTree[],
-    node: nodeModelGraph,
-    idList: BlockId[],
-    itemLayouts: { x: number; y: number }[]
-  ): {
+  /**
+   *
+   * @param treeData
+   * @param node
+   * @param idList SeriesInfo 中的 _idList
+   * @param itemLayouts SeriesInfo 中的 _itemLayouts
+   * @returns
+   */
+  private getTreeNodePosition(node: nodeModelGraph): {
     x: number;
     y: number;
   } {
+    const info = node.type == "tag" ? this.getDataInfo(2) : this.getDataInfo(0);
+    const idList = info._idList as BlockId[];
+    const itemLayouts = info._itemLayouts as {
+      x: number;
+      y: number;
+    }[];
+    const treeData = node.type == "tag" ? this.tagTreeData : this.treeData;
     let index = idList.findIndex((item) => {
       return item == node.id;
     });
-    if (index >= itemLayouts.length || !itemLayouts[index]) {
+    let parent = node;
+    while (index >= itemLayouts.length || !itemLayouts[index]) {
       //*如果在itemLayouts没有，则找parent的位置
-      let parent = this.findTreeDataById(treeData, node.parent_id);
+      parent = this.findTreeDataById(treeData, parent.parent_id);
       if (!parent) {
         this.devConsole(
           console.warn,
@@ -1090,15 +1065,11 @@ export class echartsGraph {
           y: NaN,
         };
       }
-      return this.getTreeNodePosition(
-        treeData,
-        this.buildGraphNode(parent),
-        idList,
-        itemLayouts
-      );
-    } else {
-      return itemLayouts[index];
+      index = idList.findIndex((item) => {
+        return item == parent.id;
+      });
     }
+    return itemLayouts[index];
   }
   private devConsole(callback, ...args) {
     if (!this.debug) {
