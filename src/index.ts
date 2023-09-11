@@ -1,13 +1,12 @@
-import { IModel, IPluginDockTab, Plugin } from "siyuan";
+import { Plugin } from "siyuan";
 import { echartsGraph, i18nType } from "./graph";
 const STORAGE_NAME = "TreeAndGraph-config";
 export default class networkCustom extends Plugin {
   //private isMobile: boolean;
   private onClickEditorcontentThis = this.onClickEditorcontent.bind(this);
-  private eGraph: echartsGraph;
+  //private eGraph: echartsGraph;
   private blockId: string;
   onload() {
-
     this.eventBus.on("click-editorcontent", this.onClickEditorcontentThis);
     this.data[STORAGE_NAME] = { cardMode: false };
     // 图标
@@ -19,10 +18,10 @@ export default class networkCustom extends Plugin {
       </symbol>
       `);
     }
-    this.eGraph = new echartsGraph(this.i18n as i18nType, this.app, this);
-    let lastTabWidth = 0;
-    const i18n = this.i18n;
-    const eGraph = this.eGraph;
+
+    //let lastTabWidth = 0;
+    const i18n = this.i18n as i18nType;
+    //const eGraph = this.eGraph;
     const pluginThis = this;
     this.addDock({
       config: {
@@ -31,9 +30,13 @@ export default class networkCustom extends Plugin {
         icon: "icon_networkCustom",
         title: i18n.pluginName,
       },
-      data: {},
+      data: {
+        eGraph: new echartsGraph(i18n, this.app, pluginThis),
+        lastTabWidth: 0,
+      },
       type: "dock_tab",
       init() {
+        console.log(this);
         this.element.innerHTML =
           //html
           `<div class="fn__flex-1 fn__flex-column">
@@ -51,11 +54,11 @@ export default class networkCustom extends Plugin {
       </div>`;
         //console.log(window.customGraph.i18n.prefix,"init");
         const container = document.getElementById("container_networkCustom");
-        lastTabWidth = container.offsetWidth;
-        eGraph.initGraph(container, 500, 500);
+        this.data.lastTabWidth = container.offsetWidth;
+        this.data.eGraph.initGraph(container, 400, 600);
       },
       update() {
-        lastTabWidth = document.getElementById(
+        this.data.lastTabWidth = document.getElementById(
           "container_networkCustom"
         ).offsetWidth;
       },
@@ -63,33 +66,36 @@ export default class networkCustom extends Plugin {
         const container = document.getElementById("container_networkCustom");
         const widthNum = container.offsetWidth;
         const heightNum = container.offsetHeight;
-        if (lastTabWidth == widthNum) {
+        if (this.data.lastTabWidth == widthNum) {
           return;
         }
         if (widthNum == 0 || !widthNum) {
           //*清除画布
-          if (eGraph.graph) {
-            eGraph.graph.clear();
+          if (this.data.eGraph.graph) {
+            this.data.eGraph.graph.dispose();
+            this.data.eGraph = null;
           }
         } else {
-          if (lastTabWidth == 0) {
+          if (this.data.lastTabWidth == 0) {
             //*重绘
-            eGraph.resizeGraph(widthNum, heightNum);
-            eGraph.reInitGraph(widthNum, heightNum);
-            await eGraph.reInitData(pluginThis.blockId);
+            this.data.eGraph = new echartsGraph(i18n, this.app, pluginThis);
+            this.data.eGraph.initGraph(container, widthNum, heightNum);
+            await this.data.eGraph.reInitData(pluginThis.blockId);
           } else {
             //*改变大小
-            eGraph.resizeGraph(widthNum, heightNum);
-            if (!eGraph.isFocusing) {
+            this.data.eGraph.resizeGraph(widthNum, heightNum);
+            /*if (!eGraph.isFocusing) {
               eGraph.reInitGraph(widthNum, heightNum);
               eGraph.reComputePosition();
-            }
+            }*/
           }
         }
-        lastTabWidth = widthNum || 0;
+        this.data.lastTabWidth = widthNum || 0;
       },
       destroy() {
-        eGraph.graph.dispose();
+        if (this.data.eGraph) {
+          this.eGraph.graph.dispose();
+        }
       },
     });
     //console.log(this.i18n.prefix, this.i18n.helloPlugin);

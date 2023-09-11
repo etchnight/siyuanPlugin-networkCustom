@@ -62,8 +62,7 @@ export class echartsGraph {
   private debug: boolean = false;
   public isFocusing: boolean = false;
   private siyuanqueue = new siyuanQueue();
-  //private rootBlock: Block;
-  private grid: { left: number; width: number; top: number; height: number };
+  //private grid: { left: number; width: number; top: number; height: number };
   private config: { cardMode: boolean }; //聚焦时引用块显示其父级名称
   private setting: Setting;
   constructor(i18n: i18nType, app: App, plugin: Plugin) {
@@ -71,10 +70,16 @@ export class echartsGraph {
     this.app = app;
     this.plugin = plugin;
   }
-  public resizeGraph(widthNum: number, heightNum: number) {
+  public resizeGraph(widthNum?: number, heightNum?: number) {
     if (!this.graph) {
       return;
     }
+    let graphOption = this.graph.getOption() as ECOption;
+    if (!graphOption) {
+      return;
+    }
+    widthNum = widthNum || this.graph.getWidth();
+    heightNum = heightNum || this.graph.getHeight();
     this.graph.resize({
       width: widthNum,
       height: heightNum,
@@ -82,6 +87,39 @@ export class echartsGraph {
         duration: 200,
       },
     });
+    //let widthNum = this.graph.getWidth();
+    //let heightNum = this.graph.getHeight();
+    const grid = {
+      left: 50,
+      width: widthNum - 50 - 50, //-left-right
+      top: 30,
+      height: heightNum - 30 - 30, //-top-bottom
+    };
+    if (!graphOption.grid) {
+      graphOption.grid = [];
+    }
+    graphOption.grid[0] = grid;
+    //let graphSeries = graphOption.series[1] as GraphSeriesOption;
+    let treeSeries = graphOption.series[0] as TreeSeriesOption;
+    let tagSeries = graphOption.series[2] as TreeSeriesOption;
+    const tagTreeSeriesWidth = 150;
+    tagSeries.left = grid.left + grid.width - tagTreeSeriesWidth + 30;
+    tagSeries.width = tagTreeSeriesWidth - 30;
+    tagSeries.top = grid.top;
+    tagSeries.height = grid.height;
+
+    treeSeries.left = grid.left;
+    treeSeries.width = grid.width - tagTreeSeriesWidth;
+    treeSeries.top = grid.top;
+    treeSeries.height = this.isFocusing ? grid.height * 0.7 : grid.height;
+    //*决定graphSeries的尺寸
+    graphOption.xAxis[0].max = grid.width;
+    graphOption.yAxis[0].max = grid.height;
+    this.graph.setOption(graphOption);
+
+    this.isFocusing
+      ? this.reComputePositionFousing()
+      : this.reComputePosition();
   }
   public async initGraph(
     container: HTMLElement,
@@ -116,6 +154,7 @@ export class echartsGraph {
     //graph.on("mouseover", onMouseOver);
     this.config = await this.plugin.loadData(STORAGE_NAME);
     this.initSetting();
+    this.reInitGraph();
   }
   /**
    * 初始化图表
@@ -124,17 +163,16 @@ export class echartsGraph {
    * @param heightNum
    * @returns
    */
-  public reInitGraph(widthNum?: number, heightNum?: number) {
-    if (!widthNum && !heightNum) {
-      widthNum = this.graph.getWidth();
-      heightNum = this.graph.getHeight();
-    }
+  private reInitGraph() {
+    /*let widthNum = this.graph.getWidth();
+    let heightNum = this.graph.getHeight();
     this.grid = {
       left: 50,
       width: widthNum - 50 - 50, //-left-right
       top: 30,
       height: heightNum - 30 - 30, //-top-bottom
     };
+    */
     const blockTreeSeries = this.buildTreeOpt("blockTree");
     const tagTreeSeries = this.buildTreeOpt("tagTree");
     const graphSeries: GraphSeriesOption = {
@@ -169,19 +207,19 @@ export class echartsGraph {
       },
     };
     let graphOption: ECOption = {
-      grid: [
+      /*grid: [
         {
           left: this.grid.left,
           width: this.grid.width,
           top: this.grid.top,
           height: this.grid.height,
         },
-      ],
+      ],*/
       xAxis: [
         {
           type: "value",
           min: 0,
-          max: this.grid.width,
+          //max: this.grid.width,
           show: false,
         },
       ],
@@ -189,7 +227,7 @@ export class echartsGraph {
         {
           type: "value",
           min: 0,
-          max: this.grid.height,
+          //max: this.grid.height,
           inverse: true,
           show: false,
         },
@@ -204,9 +242,9 @@ export class echartsGraph {
             title: this.i18n.toolbox.myTool1,
             icon: "path://M214.864,440.317l69.471-41.742c20.83-12.516,47.862-5.776,60.377,15.053,12.516,20.83,5.776,47.862-15.053,60.377L137.653,589.374,22.285,397.369c-12.516-20.83-5.776-47.862,15.053-60.378,20.83-12.515,47.862-5.775,60.377,15.054l34.478,57.38c36.81-123.472,126.622-227,249.697-279.243,223.634-94.927,481.893,9.459,576.842,233.144,94.948,223.685-9.365,481.973-232.998,576.9-161.485,68.546-346.059,34.258-472.152-83.359-17.77-16.575-18.738-44.418-2.162-62.188,16.575-17.77,44.418-18.738,62.187-2.163,100.9,94.117,248.546,121.546,377.742,66.705C870.24,783.287,953.688,576.663,877.727,397.71c-75.96-178.953-282.562-262.459-461.452-186.524-100.372,42.605-173.066,127.8-201.411,229.131z",
             onclick: () => {
-              this.reInitGraph();
-              this.reComputePosition();
               this.isFocusing = false;
+              this.reInitGraph();
+              //this.reComputePosition();       
             },
           },
           myTool2: {
@@ -222,6 +260,7 @@ export class echartsGraph {
     };
     graphOption = this.debug ? this.forDevInit(graphOption) : graphOption; //调试用
     this.graph.setOption(graphOption);
+    this.resizeGraph();
   }
   private buildTreeOpt(seriesId: seriesID): TreeSeriesOption {
     const emphasisLabelFormatter = (params: labelformatterParams) => {
@@ -253,7 +292,6 @@ export class echartsGraph {
     const showLabelName = (params: labelformatterParams) => {
       return params.data.labelName;
     };
-    const tagTreeSeriesWidth = 150;
     let opt: TreeSeriesOption = {
       type: "tree",
       id: seriesId,
@@ -298,7 +336,7 @@ export class echartsGraph {
           lineHeight: 15,
         },
       },
-      left:
+      /*left:
         seriesId == "blockTree"
           ? this.grid.left
           : this.grid.left + this.grid.width - tagTreeSeriesWidth + 30,
@@ -307,7 +345,7 @@ export class echartsGraph {
           ? this.grid.width - tagTreeSeriesWidth
           : tagTreeSeriesWidth - 30,
       top: this.grid.top,
-      height: this.grid.height,
+      height: this.grid.height,*/
       zoom: 1,
       roam: seriesId == "blockTree" ? true : true,
     };
@@ -1062,7 +1100,6 @@ export class echartsGraph {
   /**
    * @deprecated
    */
-  //@ts-ignore
   private async sleep(time: number) {
     return new Promise((res) => {
       setTimeout(res, time);
@@ -1074,7 +1111,9 @@ export class echartsGraph {
     }
     //*初始化
     this.graph.clear();
-    this.reInitGraph(this.graph.getWidth(), this.graph.getHeight());
+    this.reInitGraph();
+    //*设置状态
+    this.isFocusing = true;
     let parent: nodeModelTree;
     //*确定起始节点
     if (!node.parent_id) {
@@ -1106,19 +1145,19 @@ export class echartsGraph {
         node.itemStyle = {};
       }
       node.itemStyle.color = "#FF4136";
-      treeNodeArray.push(node);
+      //treeNodeArray.push(node);
     };
     const dealOther = (node: nodeModelTree) => {
-      treeNodeArray.push(node);
+      //treeNodeArray.push(node);
       node.children = [];
     };
     if (parent.id == node.id) {
       dealSelf(parent);
     } else {
-      treeNodeArray.push(node);
+      //treeNodeArray.push(node);
     }
     for (let brother of parent.children) {
-      treeNodeArray.push(brother);
+      //treeNodeArray.push(brother);
       if (brother.id != node.id) {
         dealOther(brother);
       } else {
@@ -1142,14 +1181,38 @@ export class echartsGraph {
       return params.data.labelName;
     };
     treeSeries.label.formatter = showLabelName;
-    const graphHeightRatio = 0.7;
-    treeSeries.height = (treeSeries.height as number) * graphHeightRatio;
+    //const graphHeightRatio = 0.7;
+    //treeSeries.height = (treeSeries.height as number) * graphHeightRatio;
     this.graph.setOption(option);
-    //*设置状态
-    this.isFocusing = true;
-    //*设置关系图
+    option = this.graph.getOption();
+
+    //*设置关系图，统一树和图配置
+    //this.reComputePositionFousing();
     let graphSeries = option.series[1] as GraphSeriesOption;
     graphSeries.itemStyle.opacity = 1;
+    graphSeries.lineStyle.curveness = 0.2;
+    graphSeries.label = treeSeries.label;
+    graphSeries.emphasis.label = treeSeries.emphasis.label;
+    this.graph.setOption(option);
+
+    this.resizeGraph();
+  }
+  private reComputePositionFousing() {
+    let option = this.graph.getOption() as ECOption;
+    let graphSeries = option.series[1] as GraphSeriesOption;
+    let treeSeries = option.series[0] as TreeSeriesOption;
+    let treeNodeArray: nodeModelTree[] = [];
+    const parent = treeSeries.data[0] as nodeModelTree;
+    if (!parent) {
+      return;
+    }
+    treeNodeArray.push(parent);
+    for (let brother of parent.children) {
+      treeNodeArray.push(brother);
+      for (let child of brother.children) {
+        treeNodeArray.push(child);
+      }
+    }
     this.reComputePosition();
     //const graphDataClone=structuredClone(this.graphData)
     //*在树中的节点
@@ -1188,7 +1251,8 @@ export class echartsGraph {
     let col = 0;
     for (let i = 0; i < newGraphData2.length; i++) {
       newGraphData2[i].value[0] = labelWidth * col;
-      newGraphData2[i].value[1] = 30 * (row + 1) + treeSeries.height;
+      newGraphData2[i].value[1] =
+        30 * (row + 1) + (treeSeries.height as number);
       if ((col + 1) * labelWidth < (treeSeries.width as number)) {
         col++;
       } else {
@@ -1198,10 +1262,6 @@ export class echartsGraph {
     }
     graphSeries.data = newGraphData2.concat(newGraphData1);
     graphSeries.links = this.graphLinks;
-    graphSeries.lineStyle.curveness = 0.2;
-    //*统一树和图配置
-    graphSeries.label = treeSeries.label;
-    graphSeries.emphasis.label = treeSeries.emphasis.label;
     this.graph.setOption(option);
   }
   public async expandNode(node: nodeModelTree) {
