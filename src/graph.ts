@@ -3,7 +3,11 @@ import {
   pushErrMsg,
   sql,
   typeAbbrMap,
-  siyuanQueue,
+  getBlockById,
+  getChildrenBlocks,
+  getDefBlocks,
+  getParentBlock,
+  getRefBlocks,
 } from "../../siyuanPlugin-common/siyuan-api";
 import {
   Block,
@@ -59,12 +63,12 @@ export class echartsGraph {
   public tagTreeData: nodeModelTree[] = [];
   private app: App;
   private plugin: Plugin;
-  private debug: boolean = false;
+  private debug: boolean = true;
   public isFocusing: boolean = false;
-  private siyuanqueue = new siyuanQueue();
   //private grid: { left: number; width: number; top: number; height: number };
   private config: { cardMode: boolean }; //聚焦时引用块显示其父级名称
   private setting: Setting;
+  //private
   constructor(i18n: i18nType, app: App, plugin: Plugin) {
     this.i18n = i18n;
     this.app = app;
@@ -107,11 +111,12 @@ export class echartsGraph {
     tagSeries.width = tagTreeSeriesWidth - 30;
     tagSeries.top = grid.top;
     tagSeries.height = grid.height;
-
+    //console.log(tagSeries.left,tagSeries.width)
     treeSeries.left = grid.left;
     treeSeries.width = grid.width - tagTreeSeriesWidth;
     treeSeries.top = grid.top;
     treeSeries.height = this.isFocusing ? grid.height * 0.7 : grid.height;
+    //console.log(treeSeries.left,treeSeries.width)
     //*决定graphSeries的尺寸
     graphOption.xAxis[0].max = grid.width;
     graphOption.yAxis[0].max = grid.height;
@@ -140,10 +145,10 @@ export class echartsGraph {
     this.graph.on("click", (params) => {
       this.onNodeClick(params as ECElementEventParams);
     });
-    this.graph.on("treeroam", () => {
+    this.graph.on("treeroam", (params) => {
       //params
-      this.reComputePosition();
-      //this.onTreeroam(params as ECElementEventParams);
+      //this.reComputePosition();
+      this.onTreeroam(params as ECElementEventParams);
     });
     this.graph.on("mouseover", (params) => {
       this.onMouseover(params as ECElementEventParams);
@@ -244,7 +249,7 @@ export class echartsGraph {
             onclick: () => {
               this.isFocusing = false;
               this.reInitGraph();
-              //this.reComputePosition();       
+              //this.reComputePosition();
             },
           },
           myTool2: {
@@ -361,15 +366,31 @@ export class echartsGraph {
       pushErrMsg(this.i18n.prefix + this.i18n.startNodeError);
       return;
     }
-    const startBlock = await this.siyuanqueue.getBlockById(startNodeId);
+    const startBlock = await getBlockById(startNodeId);
     const startNodeModel = this.buildNode(startBlock);
     this.treeData = [this.rootNode("tree")];
-    this.tagTreeData = [this.rootNode("tagTree")];
     await this.addNodeToTreeDataAndRefresh(this.treeData, startNodeModel);
+    this.tagTreeData = [this.rootNode("tagTree")];
+    //*必须有2个以上tag roam才会生效
+    let firstTag = this.buildTagNodes("#示例tag/1#");
+    for (let group of firstTag) {
+      for (let child of group) {
+        await this.addNodeToTreeDataAndRefresh(this.tagTreeData, child);
+      }
+    }
+    firstTag = this.buildTagNodes("#示例tag/2#");
+    console.log(firstTag);
+    for (let group of firstTag) {
+      for (let child of group) {
+        await this.addNodeToTreeDataAndRefresh(this.tagTreeData, child);
+      }
+    }
     //addBorderGraphData();
     this.graph.showLoading();
     await this.expandNode(startNodeModel);
     this.graph.hideLoading();
+    //console.log(this.getSeries(0).coordinateSystem.getCenter())
+    //console.log(this.getSeries(2).coordinateSystem.getCenter())
   }
   private rootNode(series: "tree" | "tagTree") {
     const rootNode: nodeModelTree = {
@@ -500,7 +521,7 @@ export class echartsGraph {
   /**
    * 重算关系图位置
    */
-  public reComputePosition() {
+  private reComputePosition() {
     const treeSeries = this.getSeries(0);
     const tagTreeSeries = this.getSeries(2);
     const opt = this.graph.getOption() as ECOption;
@@ -680,30 +701,31 @@ export class echartsGraph {
    * @deprecated
    */
   private onTreeroam(params: ECElementEventParams) {
-    /*//?不生效
-    this.graph.dispatchAction({
-      type: "treeroam",
-      seriesId: "tagTree",
-      zoom: params.zoom, // 单次缩放倍数
-      originX: params.originX,
-      originY: params.originY,
-      dx: params.dx,
-      dy: params.dy,
-    });*/
-    //todo tagTree无分支则不缩放
-    if (this.tagTreeData[0].children.length) {
-    }
-    let option = this.graph.getOption() as ECOption;
-    if (params.dx || params.dy) {
-      option.series[2].center[0] -= params.dx;
-      option.series[2].center[1] -= params.dy;
-    }
-    if (params.zoom) {
-      const zoom = option.series[0].zoom;
-      //option.series[2].zoom = option.series[2].zoom * params.zoom;
-      option.series[2].zoom = zoom;
-    }
-    this.graph.setOption(option);
+    //console.log(params);
+
+    const zoom = this.getSeries(0).coordinateSystem.getZoom();
+    this.getSeries(2).setZoom(zoom);
+
+    const center = this.getSeries(0).coordinateSystem.getCenter();
+    const option = this.graph.getOption() as ECOption;
+    const treeSeries = option.series[0] as TreeSeriesOption;
+    const centerOriginal = [
+      (treeSeries.width as number) / 2,
+      (treeSeries.height as number) / 2,
+    ];
+    const dCenter = [
+      center[0] - centerOriginal[0],
+      center[1] - centerOriginal[1],
+    ];
+    const tagSeries = option.series[2] as TreeSeriesOption;
+    const centerTagOriginal = [
+      (tagSeries.width as number) / 2,
+      (tagSeries.height as number) / 2,
+    ];
+    this.getSeries(2).setCenter([
+      centerTagOriginal[0] + dCenter[0],
+      centerTagOriginal[1] + dCenter[1],
+    ]);
     this.reComputePosition();
   }
   private onMouseover(params: ECElementEventParams) {
@@ -856,6 +878,11 @@ export class echartsGraph {
     };
     return link;
   }
+  /**
+   *
+   * @param tagString 应为#tag#形式
+   * @returns
+   */
   private buildTagNodes(tagString: string): nodeModelTree[][] {
     if (!tagString) {
       return [];
@@ -960,7 +987,7 @@ export class echartsGraph {
       return;
     } else {
       //*添加parent
-      const parentBlock = await this.siyuanqueue.getParentBlock(node);
+      const parentBlock = await getParentBlock(node);
       let parentNode = this.buildNode(parentBlock);
       parentNode.children.push(node);
       await this.addNodeToTreeData(treeData, parentNode);
@@ -1097,14 +1124,7 @@ export class echartsGraph {
     }
     callback(...args);
   }
-  /**
-   * @deprecated
-   */
-  private async sleep(time: number) {
-    return new Promise((res) => {
-      setTimeout(res, time);
-    });
-  }
+
   private async focusNode(node: nodeModelTree) {
     if (node.type == "tag") {
       return;
@@ -1114,8 +1134,8 @@ export class echartsGraph {
     this.reInitGraph();
     //*设置状态
     this.isFocusing = true;
-    let parent: nodeModelTree;
     //*确定起始节点
+    let parent: nodeModelTree;
     if (!node.parent_id) {
       parent = node;
     } else {
@@ -1137,8 +1157,7 @@ export class echartsGraph {
     }
     //*clone
     parent = structuredClone(parent);
-    //*设置高亮、建立数组、去除child等处理
-    let treeNodeArray: nodeModelTree[] = [];
+    //*设置高亮、去除child等处理
     const dealSelf = (node: nodeModelTree) => {
       //*设置高亮
       if (!node.itemStyle) {
@@ -1171,7 +1190,7 @@ export class echartsGraph {
     let option = this.graph.getOption() as ECOption;
     let treeSeries = option.series[0] as TreeSeriesOption;
     treeSeries.data = [parent];
-    treeSeries.roam = false;
+    //treeSeries.roam = false;
     const showLabelName = (params: labelformatterParams) => {
       //*该配置有两个作用：一是让树图显示所有标签，二是让关系图除在树图中的外，显示所有标签
       let data = params.data as nodeModelGraph;
@@ -1276,7 +1295,7 @@ export class echartsGraph {
   }
   private async expandNodeTry(node: nodeModelTree) {
     this.devConsole(console.time, "expandNode");
-    let originBlock = await this.siyuanqueue.getBlockById(node.id);
+    let originBlock = await getBlockById(node.id);
     this.devConsole(console.timeLog, "expandNode", "originBlock");
     if (!originBlock) {
       return;
@@ -1289,9 +1308,9 @@ export class echartsGraph {
     );*/
     //*获取blocks
     const [childrenBlocks, refBlocks, defBlocks] = await Promise.all([
-      this.siyuanqueue.getChildrenBlocks(node.id),
-      this.siyuanqueue.getRefBlocks(node.id),
-      this.siyuanqueue.getDefBlocks(node.id),
+      getChildrenBlocks(node.id),
+      getRefBlocks(node.id),
+      getDefBlocks(node.id),
     ]);
     const tagNodes = this.buildTagNodes(node.tag);
     //*建立队列并异步执行
@@ -1353,39 +1372,6 @@ export class echartsGraph {
     this.devConsole(console.timeLog, "expandNode", "tags");*/
     this.reComputePosition();
     this.devConsole(console.timeEnd, "expandNode");
-  }
-
-  private async expandChildren(nodeId: BlockId) {
-    const childrenBlocks = await this.siyuanqueue.getChildrenBlocks(nodeId);
-    for (let child of childrenBlocks) {
-      let node = this.buildNodeWithoutParent(child);
-      node.parent_id = nodeId;
-      await this.addNodeToTreeDataAndRefresh(this.treeData, node);
-    }
-  }
-  private async expandRefOrDef(node: nodeModelTree, type: "ref" | "def") {
-    const refBlocks =
-      type == "ref"
-        ? await this.siyuanqueue.getRefBlocks(node.id)
-        : await this.siyuanqueue.getDefBlocks(node.id);
-    let refNodes: nodeModelTree[] = [];
-    for (let child of refBlocks) {
-      let node = this.buildNode(child);
-      await this.addNodeToTreeDataAndRefresh(this.treeData, node);
-      refNodes.push(node);
-    }
-    await this.addNodesAndEdges(refNodes, node, type);
-  }
-  private async expandTag(node: nodeModelTree) {
-    const tagNodes = this.buildTagNodes(node.tag);
-    let tagLeaves: nodeModelTree[] = [];
-    for (let group of tagNodes) {
-      for (let child of group) {
-        await this.addNodeToTreeDataAndRefresh(this.tagTreeData, child);
-      }
-      tagLeaves.push(group[group.length - 1]);
-    }
-    await this.addNodesAndEdges(tagLeaves, node, "ref");
   }
 }
 
