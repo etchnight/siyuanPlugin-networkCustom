@@ -360,7 +360,6 @@ export class echartsGraph {
       }
     }
     firstTag = this.buildTagNodes("#示例tag/2#");
-    console.log(firstTag);
     for (let group of firstTag) {
       for (let child of group) {
         await this.addNodeToTreeDataAndRefresh(this.tagTreeData, child);
@@ -378,7 +377,7 @@ export class echartsGraph {
       id: series == "tree" ? "root" : "rootTag",
       labelName: series == "tree" ? "root" : "rootTag",
       children: [],
-      type: "other",
+      type: series == "tree" ? "other" : "tag",
       name: series == "tree" ? "root" : "rootTag",
       path: "",
       box: "",
@@ -510,10 +509,7 @@ export class echartsGraph {
    * @param left realPosition[0] += left * tree.coordinateSystem._zoom;
    * @param top  realPosition[1] += top * tree.coordinateSystem._zoom;
    */
-  private treePosition2GraphValue(
-    treeSeries,
-    node: nodeModelGraph
-  ) {
+  private treePosition2GraphValue(treeSeries, node: nodeModelGraph) {
     const option = this.graph.getOption() as ECOption;
     let { x, y } = this.getTreeNodePosition(node);
     if (!x || !y) {
@@ -858,14 +854,17 @@ export class echartsGraph {
       let tagObjs: nodeModelTree[] = [];
       for (let i = 0; i < tagsGroup.length; i++) {
         tagObjs[i] = {
-          id: encodeURIComponent(tagsGroup[i]),
+          id:
+            i == 0
+              ? "rootTag-" + tagsGroup[i]
+              : tagObjs[i - 1].id + "-" + tagsGroup[i],
           name: tagsGroup[i],
           type: "tag",
           labelName: tagsGroup[i],
           path: "",
           box: "",
           children: [],
-          parent_id: i == 0 ? "rootTag" : encodeURIComponent(tagsGroup[i - 1]),
+          parent_id: i == 0 ? "rootTag" : tagObjs[i - 1].id,
           tag: "",
           content: tagsGroup[i],
           value: [0, 0],
@@ -1056,6 +1055,8 @@ export class echartsGraph {
       //*如果在itemLayouts没有，则找parent的位置
       parent = this.findTreeDataById(treeData, parent.parent_id);
       if (!parent) {
+        console.log(idList);
+        console.log(node);
         this.devConsole(
           console.warn,
           `未找到${node.labelName}(id:${node.id})的父节点`
