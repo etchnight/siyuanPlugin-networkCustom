@@ -169,15 +169,6 @@ export class echartsGraph {
    * @returns
    */
   private reInitGraph() {
-    /*let widthNum = this.graph.getWidth();
-    let heightNum = this.graph.getHeight();
-    this.grid = {
-      left: 50,
-      width: widthNum - 50 - 50, //-left-right
-      top: 30,
-      height: heightNum - 30 - 30, //-top-bottom
-    };
-    */
     const blockTreeSeries = this.buildTreeOpt("blockTree");
     const tagTreeSeries = this.buildTreeOpt("tagTree");
     const graphSeries: GraphSeriesOption = {
@@ -341,16 +332,6 @@ export class echartsGraph {
           lineHeight: 15,
         },
       },
-      /*left:
-        seriesId == "blockTree"
-          ? this.grid.left
-          : this.grid.left + this.grid.width - tagTreeSeriesWidth + 30,
-      width:
-        seriesId == "blockTree"
-          ? this.grid.width - tagTreeSeriesWidth
-          : tagTreeSeriesWidth - 30,
-      top: this.grid.top,
-      height: this.grid.height,*/
       zoom: 1,
       roam: seriesId == "blockTree" ? true : true,
     };
@@ -697,17 +678,14 @@ export class echartsGraph {
         break;
     }
   }
-  /**
-   * @deprecated
-   */
   private onTreeroam(params: ECElementEventParams) {
     //console.log(params);
-
+    const tagSeries = this.getSeries(2);
     const zoom = this.getSeries(0).coordinateSystem.getZoom();
-    this.getSeries(2).setZoom(zoom);
+    tagSeries.setZoom(zoom);
 
-    const center = this.getSeries(0).coordinateSystem.getCenter();
     const option = this.graph.getOption() as ECOption;
+    const center = this.getSeries(0).coordinateSystem.getCenter();
     const treeSeries = option.series[0] as TreeSeriesOption;
     const centerOriginal = [
       (treeSeries.width as number) / 2,
@@ -717,16 +695,20 @@ export class echartsGraph {
       center[0] - centerOriginal[0],
       center[1] - centerOriginal[1],
     ];
-    const tagSeries = option.series[2] as TreeSeriesOption;
+    const tagSeriesOpt = option.series[2] as TreeSeriesOption;
     const centerTagOriginal = [
-      (tagSeries.width as number) / 2,
-      (tagSeries.height as number) / 2,
+      (tagSeriesOpt.width as number) / 2,
+      (tagSeriesOpt.height as number) / 2,
     ];
-    this.getSeries(2).setCenter([
+    let pixelCenter = [
       centerTagOriginal[0] + dCenter[0],
       centerTagOriginal[1] + dCenter[1],
-    ]);
-    this.reComputePosition();
+    ];
+
+    tagSeries.setCenter(pixelCenter);
+    this.isFocusing
+      ? this.reComputePositionFousing()
+      : this.reComputePosition();
   }
   private onMouseover(params: ECElementEventParams) {
     const nodeId = params.data.id;
@@ -1219,9 +1201,9 @@ export class echartsGraph {
   private reComputePositionFousing() {
     let option = this.graph.getOption() as ECOption;
     let graphSeries = option.series[1] as GraphSeriesOption;
-    let treeSeries = option.series[0] as TreeSeriesOption;
+    let treeSeriesOpt = option.series[0] as TreeSeriesOption;
     let treeNodeArray: nodeModelTree[] = [];
-    const parent = treeSeries.data[0] as nodeModelTree;
+    const parent = treeSeriesOpt.data[0] as nodeModelTree;
     if (!parent) {
       return;
     }
@@ -1271,13 +1253,32 @@ export class echartsGraph {
     for (let i = 0; i < newGraphData2.length; i++) {
       newGraphData2[i].value[0] = labelWidth * col;
       newGraphData2[i].value[1] =
-        30 * (row + 1) + (treeSeries.height as number);
-      if ((col + 1) * labelWidth < (treeSeries.width as number)) {
+        30 * (row + 1) + (treeSeriesOpt.height as number);
+      if ((col + 1) * labelWidth < (treeSeriesOpt.width as number)) {
         col++;
       } else {
         col = 0;
         row++;
       }
+    }
+    //缩放与平移修正
+    //todo 取自treePosition2GraphValue
+    const zoom = this.getSeries(0).coordinateSystem.getZoom();
+    //const dCenter = this.getCenterOffst();
+    const treeSeries = this.getSeries(0);
+    const left = treeSeriesOpt.left;
+    const top = treeSeriesOpt.top;
+    for (let node of newGraphData2) {
+      let realPosition = treeSeries.coordinateSystem.dataToPoint([
+        node.value[0],
+        node.value[1],
+      ]);
+      realPosition[0] += (left as number) * zoom;
+      realPosition[1] += (top as number) * zoom;
+      node.value = this.graph.convertFromPixel(
+        { gridIndex: 0 },
+        realPosition
+      ) as unknown as [number, number];
     }
     graphSeries.data = newGraphData2.concat(newGraphData1);
     graphSeries.links = this.graphLinks;
