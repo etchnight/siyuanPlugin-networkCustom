@@ -521,7 +521,6 @@ export class echartsGraph {
       //console.log("菜单");
     });
     const event = params.event.event as MouseEvent;
-    console.log(event);
     const expand = () => {
       menu.addItem({
         icon: "",
@@ -596,6 +595,9 @@ export class echartsGraph {
     switch (params.seriesId as seriesID) {
       case "blockTree":
       case "blockGraph":
+        if (params.dataType === "edge") {
+          return;
+        }
         if (!this.isFocusing) {
           expand();
         }
