@@ -8,6 +8,7 @@ import {
   getDefBlocks,
   getParentBlock,
   getRefBlocks,
+  getBlockBreadcrumb,
 } from "../../siyuanPlugin-common/siyuan-api";
 import {
   Block,
@@ -63,7 +64,7 @@ export class echartsGraph {
   public tagTreeData: nodeModelTree[] = [];
   private app: App;
   private plugin: Plugin;
-  private debug: boolean = true;
+  private debug: boolean = false;
   public isFocusing: boolean = false;
   //private grid: { left: number; width: number; top: number; height: number };
   private config: { cardMode: boolean }; //聚焦时引用块显示其父级名称
@@ -913,6 +914,21 @@ export class echartsGraph {
         depthCount++;
       }
     };
+    const addNode = (parent: nodeModelTree, node: nodeModelTree) => {
+      //?不可行 node.parent = parent;
+      //*添加node
+      let added = parent.children.find((child) => {
+        return child.id == node.id;
+      });
+      node.depth = parent.depth + 1;
+      if (!added) {
+        parent.children.push(node);
+        computeDepth(node);
+      } else {
+        //*更新节点
+        this.cloneNodeExceptChildren(node, added);
+      }
+    };
     //*node为box
     if (node.type == "box") {
       //&& node.id
@@ -933,26 +949,42 @@ export class echartsGraph {
     //*查找parent
     let parent = this.findTreeDataById(treeData, node.parent_id);
     if (parent) {
-      //?不可行 node.parent = parent;
-      //*添加node
-      let added = parent.children.find((child) => {
-        return child.id == node.id;
-      });
-      node.depth = parent.depth + 1;
-      if (!added) {
-        parent.children.push(node);
-        computeDepth(node);
-      } else {
-        //*更新节点
-        this.cloneNodeExceptChildren(node, added);
-      }
+      addNode(parent, node);
       return;
     } else {
       //*添加parent
-      const parentBlock = await getParentBlock(node);
-      let parentNode = this.buildNode(parentBlock);
-      parentNode.children.push(node);
-      await this.addNodeToTreeData(treeData, parentNode);
+      if (node.type !== "d") {
+        const ancestor = await getBlockBreadcrumb(node.id);
+        let queue: Promise<Block>[] = [];
+        for (let item of ancestor) {
+          let parent = this.findTreeDataById(treeData, node.parent_id);
+          if (parent) {
+            addNode(parent, node);
+          } else {
+            queue.push(getBlockById(item.id));
+          }
+        }
+        let ancestorBlocks = await Promise.all(queue);
+        ancestorBlocks.sort((a, b) => {
+          return (
+            ancestor.findIndex((item1) => {
+              return item1.id === a.id;
+            }) -
+            ancestor.findIndex((item1) => {
+              return item1.id === b.id;
+            })
+          );
+        });
+        for (let block of ancestorBlocks) {
+          let node = this.buildNode(block);
+          await this.addNodeToTreeData(treeData, node);
+        }
+      } else {
+        const parentBlock = await getParentBlock(node);
+        let parentNode = this.buildNode(parentBlock);
+        parentNode.children.push(node);
+        await this.addNodeToTreeData(treeData, parentNode);
+      }
     }
   }
   /**
@@ -1055,8 +1087,6 @@ export class echartsGraph {
       //*如果在itemLayouts没有，则找parent的位置
       parent = this.findTreeDataById(treeData, parent.parent_id);
       if (!parent) {
-        console.log(idList);
-        console.log(node);
         this.devConsole(
           console.warn,
           `未找到${node.labelName}(id:${node.id})的父节点`
