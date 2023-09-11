@@ -521,6 +521,7 @@ export class echartsGraph {
       //console.log("菜单");
     });
     const event = params.event.event as MouseEvent;
+    console.log(event);
     const expand = () => {
       menu.addItem({
         icon: "",
@@ -1219,12 +1220,64 @@ export class echartsGraph {
       return;
     }
     //*更新自身
-    const nodeNew = this.buildNode(originBlock);
+    /*const nodeNew = this.buildNode(originBlock);
     await this.addNodeToTreeDataAndRefresh(
       node.type == "tag" ? this.tagTreeData : this.treeData,
       nodeNew
-    );
-    //*children
+    );*/
+    //*获取blocks
+    const [childrenBlocks, refBlocks, defBlocks] = await Promise.all([
+      this.siyuanqueue.getChildrenBlocks(node.id),
+      this.siyuanqueue.getRefBlocks(node.id),
+      this.siyuanqueue.getDefBlocks(node.id),
+    ]);
+    const tagNodes = this.buildTagNodes(node.tag);
+    //*建立队列并异步执行
+    let treeQueue = [];
+    let graphQueue = [];
+    let tagLeaves: nodeModelTree[] = [];
+    for (let group of tagNodes) {
+      for (let child of group) {
+        treeQueue.push(
+          this.addNodeToTreeDataAndRefresh(this.tagTreeData, child)
+        );
+      }
+      tagLeaves.push(group[group.length - 1]);
+    }
+
+    for (let child of childrenBlocks) {
+      let childNode = this.buildNodeWithoutParent(child);
+      childNode.parent_id = node.id;
+      treeQueue.push(
+        this.addNodeToTreeDataAndRefresh(this.treeData, childNode)
+      );
+    }
+
+    let refNodes: nodeModelTree[] = [];
+    for (let child of refBlocks) {
+      let childNode = this.buildNode(child);
+      treeQueue.push(
+        this.addNodeToTreeDataAndRefresh(this.treeData, childNode)
+      );
+      refNodes.push(childNode);
+    }
+
+    let defNodes: nodeModelTree[] = [];
+    for (let child of defBlocks) {
+      let childNode = this.buildNode(child);
+      treeQueue.push(
+        this.addNodeToTreeDataAndRefresh(this.treeData, childNode)
+      );
+      defNodes.push(childNode);
+    }
+    await Promise.all(treeQueue);
+    graphQueue.push(this.addNodesAndEdges(tagLeaves, node, "ref"));
+    graphQueue.push(this.addNodesAndEdges(defNodes, node, "def"));
+    graphQueue.push(this.addNodesAndEdges(refNodes, node, "ref"));
+    await Promise.all(graphQueue);
+
+    //console.log(childrenBlocks, refBlocks, defBlocks);
+    /*//*children
     await this.expandChildren(node.id);
     this.devConsole(console.timeLog, "expandNode", "children");
     //*refBlocks
@@ -1235,10 +1288,11 @@ export class echartsGraph {
     this.devConsole(console.timeLog, "expandNode", "defBlocks");
     //*tags
     await this.expandTag(node);
-    this.devConsole(console.timeLog, "expandNode", "tags");
+    this.devConsole(console.timeLog, "expandNode", "tags");*/
     this.reComputePosition();
     this.devConsole(console.timeEnd, "expandNode");
   }
+
   private async expandChildren(nodeId: BlockId) {
     const childrenBlocks = await this.siyuanqueue.getChildrenBlocks(nodeId);
     for (let child of childrenBlocks) {

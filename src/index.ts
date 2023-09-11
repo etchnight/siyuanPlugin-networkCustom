@@ -97,8 +97,6 @@ export default class networkCustom extends Plugin {
 
   onLayoutReady() {
     this.loadData(STORAGE_NAME);
-    console.clear()
-    console.log('202309110101')
     //console.log(`frontend: ${getFrontend()}; backend: ${getBackend()}`);
   }
 
