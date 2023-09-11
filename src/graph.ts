@@ -1253,6 +1253,7 @@ export class echartsGraph {
     let row = 0;
     let col = 0;
     for (let i = 0; i < newGraphData2.length; i++) {
+      newGraphData2[i].isHideLabel = false;
       newGraphData2[i].value[0] = labelWidth * col;
       newGraphData2[i].value[1] =
         30 * (row + 1) + (treeSeriesOpt.height as number);
